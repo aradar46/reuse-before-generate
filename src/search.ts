@@ -87,6 +87,13 @@ export function keywordsAsQuery(keywords: string[], maxChars = 64): string {
     if (next.length > maxChars) break;
     out = next;
   }
+  // A single keyword longer than the cap would otherwise leave `out` empty,
+  // which npm rejects outright (ERR_TEXT_LENGTH: text must be 2-64 chars).
+  // A truncated query is a worse query but still a valid one; an empty query
+  // is a guaranteed 400.
+  if (out === "" && keywords.length > 0) {
+    return keywords[0].slice(0, maxChars);
+  }
   return out;
 }
 
