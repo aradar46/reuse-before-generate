@@ -1,27 +1,44 @@
 # reuse-before-generate
 
-**Your AI keeps building things that already exist. This stops it.**
+**Your idea probably already exists. Find out before you build it, not after.**
 
-Right now:
+Here is how it usually goes. You have an idea. You ask a frontier model
+what it thinks, and it tells you the space is wide open and people would
+love it. So you tell your agent to build it, and it writes thousands of
+lines for something that already exists.
 
-> **You:** write me something that frees up port 3000 when it's stuck
+That happened to me. I kept hitting the same failing Android CI build,
+waiting for a re-run, hitting it again. I thought: someone should be able
+to pause the build and get a shell inside it. I asked an AI, it told me
+this was a genuinely good idea, and I built
+[fermata](https://github.com/aradar46/fermata).
+
+Then I found `action-tmate`. 3,566 stars. Does exactly that. Has for years.
+
+This server is the check I wish I'd run. Ask your agent to build something
+and it looks first:
+
+> Before building — this already exists:
 >
-> **Your AI:** *writes 40 lines of code*
-
-With this installed:
-
-> **You:** write me something that frees up port 3000 when it's stuck
+> 1. **action-tmate** (3,566★, updated today) — "Debug your GitHub Actions
+>    via SSH by using tmate to get access to the runner system itself."
 >
-> **Your AI:** Hold on — I checked first, and three tools already do this:
->
-> 1. **fkill** (6,997★) — "Fabulously kill processes." One command, pick
->    from a list. Closest to what you want.
-> 2. **port-killer** (4,964★) — bigger, does more.
-> 3. **port-kill** (2,034★) — also clears caches.
->
-> Want me to install `fkill` instead, or build it anyway?
+> Actively maintained and widely used. Want to try it, or is there
+> something yours would do differently?
 
-You still choose. You just choose knowing.
+Sometimes the answer really is "mine is different, keep going." Sometimes
+it saves you a weekend. Either way you find out in ten seconds instead of
+after.
+
+Why bother: fewer wasted hours, fewer abandoned projects nobody uses, and
+less energy burned generating code that already exists. Jenna Pederson put
+the general case well in [*You Can Build It, But Should
+You?*](https://dev.to/jennapederson/you-can-build-it-should-you-9e0) — AI
+removed the friction that used to force you to ask whether something is
+worth building at all.
+
+For the record, this tool did not survive its own test either!
+But I had to build it to find out. Hopefully it will prevent me from doing it again.
 
 ## Install
 
@@ -31,14 +48,8 @@ No API key. No account. Nothing to configure.
 claude mcp add reuse-before-generate -- npx -y reuse-before-generate
 ```
 
-Then start a **new** session and ask your agent something like *"check
-whether a tool already exists that finds what's using a port and kills
-it."*
-
-> Don't run `npx -y reuse-before-generate` on its own. It will print
-> `MCP server running on stdio` and then sit there looking frozen — that's
-> correct. It's waiting for an agent to talk to it, and there isn't one.
-> Your agent runs that command for you. (Ctrl+C to get out.)
+Then start a **new** session and try it on an idea of your own — the one
+you were about to build.
 
 Or add it to `.mcp.json` yourself — this works in Cursor, Claude Desktop,
 and any other MCP client:
@@ -108,9 +119,9 @@ Current scores:
 | Found it in the top 5 | 10 of 11 |
 | Made something up when nothing existed | never |
 
-That last row matters most. A tool that finds "matches" for everything is
-worse than useless, so one test case describes something deliberately
-absurd that no real tool does. It correctly finds nothing.
+The last row matters most. A tool that reports matches for everything is
+useless, so one test case describes something no real tool does. It
+correctly returns nothing.
 
 Details, including where it still fails, are in
 **[docs/findings.md](docs/findings.md)**.

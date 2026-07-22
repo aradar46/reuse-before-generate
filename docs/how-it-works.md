@@ -67,6 +67,30 @@ site alt-text". Searching with the user's words instead of the maintainer's
 is the single most common way this tool misses something real — see
 [findings.md](findings.md) for the measurements.
 
+## Running it directly looks like a hang
+
+An MCP server speaks JSON-RPC over stdin and stdout. Run the command in a
+terminal by itself and it prints one line, then waits:
+
+```
+$ npx -y reuse-before-generate
+reuse-before-generate MCP server running on stdio
+```
+
+That is correct behaviour, not a crash. It is waiting for a client to send
+it a message, and a bare terminal never does — the same way `cat` with no
+arguments sits there. Ctrl+C exits.
+
+Your MCP client runs this command for you and speaks the protocol over the
+pipe. To confirm the server works without a client, send it one message:
+
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
+  | npx -y reuse-before-generate
+```
+
+It replies with its name and version, then exits when stdin closes.
+
 ## Local state
 
 Everything the tool remembers lives in `~/.reuse-before-generate/`:
