@@ -63,12 +63,11 @@ Create `test/unit/result.test.ts`:
 ```ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ok, err, isOk } from "../../dist/result.js";
+import { ok, err } from "../../dist/result.js";
 
-test("ok() wraps a value and is recognized by isOk", () => {
+test("ok() wraps a value and narrows to the success branch", () => {
   const r = ok("github", [1, 2]);
   assert.equal(r.ok, true);
-  assert.equal(isOk(r), true);
   if (r.ok) {
     assert.equal(r.source, "github");
     assert.deepEqual(r.value, [1, 2]);
@@ -78,7 +77,6 @@ test("ok() wraps a value and is recognized by isOk", () => {
 test("err() carries source and reason and is not ok", () => {
   const r = err("npm", "HTTP 503");
   assert.equal(r.ok, false);
-  assert.equal(isOk(r), false);
   if (!r.ok) {
     assert.equal(r.source, "npm");
     assert.equal(r.reason, "HTTP 503");
@@ -110,13 +108,16 @@ export function ok<T>(source: Source, value: T): Result<T> {
   return { ok: true, source, value };
 }
 
+// T is unused in the error branch and is pinned by the caller's return-type
+// annotation, not by the arguments. Every call site declares its own
+// `Promise<Result<...>>`, so inference works; called somewhere unannotated,
+// T would silently widen to unknown. Keep the annotations.
 export function err<T>(source: Source, reason: string): Result<T> {
   return { ok: false, source, reason };
 }
 
-export function isOk<T>(r: Result<T>): r is { ok: true; source: Source; value: T } {
-  return r.ok;
-}
+// No isOk() guard: `r.ok` narrows the union on its own, so a helper would be
+// unused indirection. Checks throughout the codebase are plain `if (r.ok)`.
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
