@@ -123,37 +123,18 @@ absurd that no real tool does. It correctly finds nothing.
 Details, including where it still fails, are in
 **[docs/findings.md](docs/findings.md)**.
 
-## Is it spying on me?
-
-No, and you can check.
-
-It writes one line per call to `~/.reuse-before-generate/events.jsonl`,
-containing a random ID, a timestamp, and how many results were found. That's
-it. **No descriptions, no keywords, no file paths, no code.** It never
-leaves your machine — nothing is uploaded anywhere.
-
-Read it yourself:
-
-```bash
-cat ~/.reuse-before-generate/events.jsonl
-```
-
-Turn it off completely:
-
-```bash
-REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1
-```
-
 ## Settings
 
-All optional.
+There's one setting worth knowing about: **`GITHUB_TOKEN`**. Without it
+GitHub allows 10 searches a minute, with it 30. Set it in the `env` block
+shown in [Install](#install).
 
-| Variable | What it does |
-|---|---|
-| `GITHUB_TOKEN` | Raises GitHub's search limit from 10/min to 30/min. Recommended. |
-| `REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1` | Stops writing the local log. |
-| `REUSE_BEFORE_GENERATE_SHOW_ENERGY=1` | Shows an estimated "energy saved" line. Off by default — it's a rough guess, not a measurement. |
-| `REUSE_BEFORE_GENERATE_TELEMETRY_URL` | Sends events to your own collector, if you want one. Nothing is bundled. |
+It also keeps a local count of its own usage in
+`~/.reuse-before-generate/events.jsonl` — a random ID, a timestamp, and how
+many results came back. Nothing is sent anywhere. See
+[local state](docs/how-it-works.md#local-state) to read or disable it, and
+[all environment variables](docs/how-it-works.md#environment-variables) for
+the rest.
 
 ## Where it still falls short
 

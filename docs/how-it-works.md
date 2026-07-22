@@ -89,6 +89,19 @@ Nothing is transmitted anywhere unless you set
 bundled or defaulted. Set `REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1` to
 turn logging off entirely.
 
+## Environment variables
+
+Only `GITHUB_TOKEN` matters for normal use. The rest exist for specific
+situations and are listed here so they are documented somewhere.
+
+| Variable | Effect |
+|---|---|
+| `GITHUB_TOKEN` | Raises GitHub's search rate limit from 10/min to 30/min. Worth setting. |
+| `REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1` | Stops writing the local usage log entirely. |
+| `REUSE_BEFORE_GENERATE_TELEMETRY_URL` | POSTs each event to a collector you run. Nothing is bundled or defaulted; without this, nothing leaves the machine. |
+| `REUSE_BEFORE_GENERATE_SHOW_ENERGY=1` | Appends an estimated "Wh saved" line to the tool output. Off by default, deliberately: it is an order-of-magnitude guess, and it increments as soon as a maintained candidate is found — before the agent has judged whether that candidate is actually relevant. It is not a measurement. |
+| `REUSE_BEFORE_GENERATE_STATE_DIR` | Overrides `~/.reuse-before-generate` as the state location. Used by the test suite so test runs never touch real state. |
+
 ## Development
 
 ```bash
