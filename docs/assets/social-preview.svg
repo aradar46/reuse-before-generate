@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#161b22"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1280" height="6" fill="#2f81f7"/>
+
+  <text x="90" y="150" font-family="Helvetica, Arial, sans-serif" font-size="26"
+        fill="#8b949e" letter-spacing="3">REUSE-BEFORE-GENERATE</text>
+
+  <text x="90" y="270" font-family="Helvetica, Arial, sans-serif" font-size="76"
+        font-weight="bold" fill="#e6edf3">Your idea probably</text>
+  <text x="90" y="360" font-family="Helvetica, Arial, sans-serif" font-size="76"
+        font-weight="bold" fill="#e6edf3">already exists.</text>
+
+  <text x="90" y="440" font-family="Helvetica, Arial, sans-serif" font-size="34"
+        fill="#8b949e">Find out before you build it, not after.</text>
+
+  <rect x="90" y="500" width="620" height="62" rx="10" fill="#010409" stroke="#30363d" stroke-width="1"/>
+  <text x="115" y="540" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="22"
+        fill="#7ee787">npx -y reuse-before-generate</text>
+
+  <text x="1190" y="545" font-family="Helvetica, Arial, sans-serif" font-size="22"
+        fill="#8b949e" text-anchor="end">MCP server</text>
+</svg>
