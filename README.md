@@ -17,9 +17,6 @@ No API key. No account. One line to install.
 claude mcp add reuse-before-generate -- npx -y reuse-before-generate
 ```
 
-> **Not published to npm yet.** Until it is, install from a clone — see
-> [Running from source](#running-from-source) below.
-
 ---
 
 ## What you get
