@@ -79,10 +79,17 @@ export function extractKeywords(description: string, max = 4): string[] {
 /** npm's search API rejects `text` over 64 chars (ERR_TEXT_LENGTH); GitHub
  * has no such hard cap but a shorter query is also a tighter query there.
  * Joins keywords space-separated, dropping trailing words that would push
- * past the limit rather than truncating mid-word. */
+ * past the limit rather than truncating mid-word. The one exception is a
+ * first keyword that alone exceeds the cap: see the fallback below. */
 export function keywordsAsQuery(keywords: string[], maxChars = 64): string {
+  // Blank/whitespace-only entries are dropped before joining. Left in, they
+  // contribute nothing but still consume separator characters, producing
+  // queries like "    json" or a whitespace-only string — the latter being
+  // exactly the ERR_TEXT_LENGTH rejection this function exists to avoid.
+  const usable = keywords.map((kw) => kw.trim()).filter((kw) => kw.length > 0);
+
   let out = "";
-  for (const kw of keywords) {
+  for (const kw of usable) {
     const next = out ? `${out} ${kw}` : kw;
     if (next.length > maxChars) break;
     out = next;
@@ -91,8 +98,8 @@ export function keywordsAsQuery(keywords: string[], maxChars = 64): string {
   // which npm rejects outright (ERR_TEXT_LENGTH: text must be 2-64 chars).
   // A truncated query is a worse query but still a valid one; an empty query
   // is a guaranteed 400.
-  if (out === "" && keywords.length > 0) {
-    return keywords[0].slice(0, maxChars);
+  if (out === "" && usable.length > 0) {
+    return usable[0].slice(0, maxChars);
   }
   return out;
 }

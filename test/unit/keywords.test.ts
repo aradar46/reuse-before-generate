@@ -29,6 +29,21 @@ test("keywordsAsQuery returns empty string for no keywords", () => {
   assert.equal(keywordsAsQuery([]), "");
 });
 
+test("keywordsAsQuery skips empty entries rather than emitting an empty query", () => {
+  // The fallback must not assume keywords[0] is usable: an empty or
+  // whitespace-only first entry would otherwise produce the empty `text=`
+  // that npm rejects with ERR_TEXT_LENGTH, which is the exact bug the
+  // fallback exists to prevent.
+  assert.equal(keywordsAsQuery(["", "viewer"]), "viewer");
+  assert.equal(keywordsAsQuery(["   ", "json"]), "json");
+});
+
+test("keywordsAsQuery returns empty string when every keyword is blank", () => {
+  // Nothing usable to send. Callers must treat an empty query as "skip the
+  // request" — Task 5 adds that guard in searchNpm.
+  assert.equal(keywordsAsQuery(["", "   "]), "");
+});
+
 test("extractKeywords keeps first-occurrence order and drops stop words", () => {
   const out = extractKeywords("A command-line tool that formats Python source code", 4);
   assert.deepEqual(out, ["command-line", "formats", "python", "code"]);
