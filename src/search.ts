@@ -301,13 +301,18 @@ export async function searchPyPIResult(
   overrideKeywords?: string[],
   limit = 10,
 ): Promise<Result<RawCandidate[]>> {
-  // PyPI has no official JSON search API (the old one was retired). The
-  // JSON-format search endpoint (pypi.org/search/?q=...&format=json) still
-  // returns text/html, confirmed 2026-07-22, so name-guessing against the
-  // per-project JSON endpoint is the only option: query the single most
-  // likely package name guesses (kebab-case joins of top keywords). This
-  // won't discover unrelated names but catches direct hits cheaply and
-  // safely.
+  // PyPI has no general search API — the XML-RPC one was retired, and the
+  // web search endpoint returns HTML regardless of what you ask for:
+  //
+  //   curl -so /dev/null -w '%{content_type}' \
+  //     'https://pypi.org/search/?q=json+viewer&format=json'
+  //   # => text/html; charset=utf-8   (same with Accept: application/json)
+  //
+  // Re-run that to check whether this is still true. Until it changes, the
+  // only option is guessing package names against the per-project JSON
+  // endpoint (kebab-case joins of the top keywords). That misses anything
+  // not named after its own keywords, but catches direct hits cheaply.
+  // Broader Python coverage comes from the GitHub language:python lane.
   const keywords = meaningfulKeywords(overrideKeywords ?? extractKeywords(description, 4));
   if (keywords.length === 0) return ok("pypi", []);
   const guesses = [keywords.join("-"), keywords.slice(0, 2).join("-")];
