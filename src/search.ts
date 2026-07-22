@@ -296,6 +296,35 @@ export async function searchNpm(
   return r.ok ? r.value : [];
 }
 
+/** Python discovery via GitHub rather than PyPI.
+ *
+ * Since PyPI offers no real search (see searchPyPIResult), name-guessing
+ * only finds packages named after their own keywords — it cannot find
+ * `requests` from "http client". Nearly every Python tool worth surfacing
+ * has a GitHub repo, and `language:python` shrinks the result pool enough
+ * that small repos rank on their own merits instead of being buried by
+ * unrelated high-star noise: a live check of "json viewer terminal
+ * language:python" returned 12 total results, three of them under 5 stars.
+ *
+ * Tagged source "github" because that is where the candidate actually
+ * lives — the URL and star count are GitHub's. */
+export async function searchPythonRepos(
+  keywords: string[],
+  limit = 10,
+): Promise<RawCandidate[]> {
+  const usable = meaningfulKeywords(keywords);
+  if (usable.length === 0) return [];
+  try {
+    const items = await fetchGitHubSearch(`${usable.join(" ")} language:python`, limit);
+    return items.map(toCandidate);
+  } catch (e) {
+    // Best-effort supplement: a failure here should not sink the PyPI
+    // lane's own direct-hit guesses.
+    console.error(`[search] python lane failed: ${(e as Error).message}`);
+    return [];
+  }
+}
+
 export async function searchPyPIResult(
   description: string,
   overrideKeywords?: string[],
@@ -338,6 +367,16 @@ export async function searchPyPIResult(
       // ignore — guess-based lookup is best-effort
     }
   }
+
+  // Merge the GitHub-side Python lane. Deduped by id so a project found
+  // both ways (PyPI name guess and GitHub repo) is not listed twice.
+  const seen = new Set(results.map((r) => r.id.toLowerCase()));
+  for (const repo of await searchPythonRepos(keywords)) {
+    if (seen.has(repo.id.toLowerCase())) continue;
+    seen.add(repo.id.toLowerCase());
+    results.push(repo);
+  }
+
   return ok("pypi", results.slice(0, limit));
 }
 

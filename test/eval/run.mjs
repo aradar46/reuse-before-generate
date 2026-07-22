@@ -8,6 +8,11 @@
 //   npm run eval -- --save     rewrite the baseline
 //   npm run eval -- --case id  run a single case (fast iteration)
 //
+// A full unauthenticated run takes ~4-5 minutes because of rate-limit
+// spacing. Do NOT `npm run build` while one is in flight: the run imports
+// from dist/, and tsc rewriting those files mid-run kills it silently.
+// Set GITHUB_TOKEN to cut the wait roughly in half.
+//
 // Why rank and not pass/fail: pass/fail cannot tell you that a change moved
 // the right answer from position 14 to position 3, which is exactly the
 // signal needed when tuning queries.
@@ -15,12 +20,24 @@
 import { searchAllResults } from "../../dist/search.js";
 import { verifyAll } from "../../dist/verify.js";
 import { cases } from "./cases.mjs";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BASELINE = join(HERE, "baseline.json");
+const DIST_SEARCH = join(HERE, "..", "..", "dist", "search.js");
+
+/** Rebuilding dist/ mid-run kills the process silently — Node has already
+ * loaded these modules, and tsc rewriting them produces a confusing partial
+ * failure minutes in. Catch it and say so plainly instead. */
+function distStamp() {
+  try {
+    return statSync(DIST_SEARCH).mtimeMs;
+  } catch {
+    return null;
+  }
+}
 
 // GitHub's search endpoint allows 10 requests/min unauthenticated, 30/min
 // with a token (verified against /rate_limit). Each variant issues 2 GitHub
@@ -47,11 +64,19 @@ async function runVariant(description, keywords) {
   const results = await searchAllResults(description, keywords);
   const failures = results.filter((r) => !r.ok).map((r) => `${r.source}:${r.reason}`);
   const raw = results.flatMap((r) => (r.ok ? r.value : []));
-  // Which source produced each candidate, so per-source attribution can
-  // answer "is the low-star lane earning its extra request?"
   const verified = await verifyAll(raw);
   const maintained = verified.filter((c) => c.maintained);
   return { maintained, failures };
+}
+
+/** Which source produced the winning candidate. Answers "is this lane
+ * earning its extra request?" for the two speculative ones — GitHub's
+ * low-star lane and the language:python lane both cost a request per call
+ * and exist on the theory that they surface things the primary query
+ * buries. If neither ever produces a winner, both should go. */
+function creditSource(maintained, rank) {
+  if (rank === null) return null;
+  return maintained[rank - 1]?.source ?? null;
 }
 
 function summarize(rows) {
@@ -98,6 +123,7 @@ async function main() {
 
   const rows = [];
   let requestBudget = 0;
+  const startStamp = distStamp();
 
   for (const [i, c] of selected.entries()) {
     const variants = c.variants ?? [undefined];
@@ -105,6 +131,13 @@ async function main() {
 
     for (const [vi, keywords] of variants.entries()) {
       if (i > 0 || vi > 0) await sleep(SLEEP_MS);
+      if (distStamp() !== startStamp) {
+        console.error(
+          "\ndist/ changed mid-run (something rebuilt it). Scores so far are" +
+            "\nmixed across two builds and cannot be compared. Aborting.",
+        );
+        process.exit(3);
+      }
       requestBudget += 1;
       const { maintained, failures } = await runVariant(c.description, keywords);
       const rank = rankOfFirstMatch(maintained, c.expectAnyOf);
@@ -113,6 +146,7 @@ async function main() {
         rank,
         pool: maintained.length,
         failures,
+        source: creditSource(maintained, rank),
         topHits: maintained.slice(0, 3).map((m) => m.id),
       });
     }
@@ -154,7 +188,8 @@ async function main() {
     console.log(`${r.id.padEnd(22)} ${label.padEnd(18)}${spread}`);
     for (const v of r.variants) {
       const vr = v.rank === null ? "MISS" : `#${v.rank}`;
-      console.log(`    ${vr.padEnd(6)} pool=${String(v.pool).padEnd(4)} kw=${v.keywords}`);
+      const via = v.source ? ` via=${v.source}` : "";
+      console.log(`    ${vr.padEnd(6)} pool=${String(v.pool).padEnd(4)}${via} kw=${v.keywords}`);
       if (v.rank === null && v.topHits.length > 0) {
         console.log(`           got instead: ${v.topHits.join(", ")}`);
       }
