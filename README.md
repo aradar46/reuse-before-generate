@@ -2,9 +2,9 @@
 
 **Stop your AI agent from rebuilding something that already exists.**
 
-Ask an agent to build a changelog generator and it will happily write one
-from scratch — even though `git-cliff` already does it, better, and is
-actively maintained.
+Ask an agent for "a script that finds whatever is hogging port 3000 and
+kills it" and it will happily write one from scratch — even though several
+polished tools already do exactly that, and one has 7,000 stars.
 
 This is an MCP server. It hands your agent one new ability —
 `check_before_building` — which searches GitHub, npm, and Python repos,
@@ -21,21 +21,20 @@ claude mcp add reuse-before-generate -- npx -y reuse-before-generate
 
 ## What you get
 
-Ask your agent to build something. Instead of starting immediately, it
-answers like this:
+You: *"write me something that finds what's using a port and kills it"*
 
-> Before I build this, I checked. 45 results, 32 still maintained. Three
-> genuinely do what you described:
+Instead of writing it, your agent answers:
+
+> Before I build this, I checked. 45 results, 23 still actively maintained.
+> Three already do this:
 >
-> 1. **conventional-changelog** (8,486★, updated today) — the ecosystem
->    standard. Extend this: its preset system already handles the custom
->    grouping you wanted.
-> 2. **git-cliff** (12,033★, updated today) — a single fast binary, highly
->    configurable via TOML. Better fit if you don't want Node in the loop.
-> 3. **changelogen** (1,252★, updated this week) — lighter, closest to the
->    minimal thing you sketched.
+> 1. **fkill** (6,997★) — "Fabulously kill processes. Cross-platform."
+>    Interactive picker, one command. Closest to what you asked for.
+> 2. **port-killer** (4,964★, updated last month) — heavier, also handles
+>    Kubernetes port-forwards if you ever need that.
+> 3. **port-kill** (2,034★) — frees ports *and* clears dev caches.
 >
-> Want me to extend one of these, or build fresh anyway?
+> Want me to just install `fkill`, or build it anyway?
 
 You still decide. It just makes sure you decide *knowing*.
 
@@ -46,8 +45,8 @@ claude mcp add reuse-before-generate -- npx -y reuse-before-generate
 ```
 
 Then start a **new** session and ask your agent something like *"check
-whether a tool that generates changelogs from conventional commits already
-exists."*
+whether a tool already exists that finds what's using a port and kills
+it."*
 
 > Don't run `npx -y reuse-before-generate` on its own. It will print
 > `MCP server running on stdio` and then sit there looking frozen — that's
