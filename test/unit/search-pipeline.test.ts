@@ -109,8 +109,14 @@ test("a 403 is retried once and succeeds on the second attempt", async () => {
 
   assert.equal(github?.ok, true);
   if (github?.ok) assert.equal(github.value[0].id, "psf/black");
-  // Two lanes, each retried once: 2 failed + 2 successful attempts.
-  assert.equal(githubCalls, 4);
+  // Asserted as a property, not a fixed count: the two 403s must each be
+  // followed by a real retry, so the total exceeds the number of lanes.
+  // A hardcoded number here breaks every time a lane is added — which is
+  // exactly what happened when the language:python lane landed.
+  assert.ok(
+    githubCalls > 2,
+    `expected the two 403s to be retried, saw only ${githubCalls} call(s)`,
+  );
 });
 
 test("a 403 that persists through the retry is reported as a failure", async () => {

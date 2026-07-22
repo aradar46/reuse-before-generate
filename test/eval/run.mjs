@@ -40,12 +40,20 @@ function distStamp() {
 }
 
 // GitHub's search endpoint allows 10 requests/min unauthenticated, 30/min
-// with a token (verified against /rate_limit). Each variant issues 2 GitHub
-// requests — primary lane plus low-star lane — so unauthenticated runs need
-// ~12s between variants to stay under the limit. Going faster does not
-// error loudly; it silently turns real hits into MISSes via 403, which is
+// with a token (verified against /rate_limit). Going over does not error
+// loudly — it silently turns real hits into MISSes via 403, which is
 // indistinguishable from a genuine recall failure in the scores.
-const DEFAULT_SLEEP_MS = process.env.GITHUB_TOKEN ? 4500 : 12000;
+//
+// Derived rather than hardcoded, because the per-variant request count is
+// exactly the kind of thing that drifts: adding the language:python lane
+// took it from 2 to 3, which silently invalidated a hand-tuned 12s delay
+// and produced 5 phantom misses before anyone noticed.
+const GITHUB_REQUESTS_PER_VARIANT = 3; // primary + low-star + language:python
+const GITHUB_LIMIT_PER_MIN = process.env.GITHUB_TOKEN ? 30 : 10;
+// 25% headroom: the limit is a sliding window, not a clean per-minute reset.
+const DEFAULT_SLEEP_MS = Math.ceil(
+  (60_000 / (GITHUB_LIMIT_PER_MIN / GITHUB_REQUESTS_PER_VARIANT)) * 1.25,
+);
 const SLEEP_MS = Number(process.env.EVAL_SLEEP_MS ?? DEFAULT_SLEEP_MS);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
