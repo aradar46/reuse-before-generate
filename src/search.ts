@@ -182,7 +182,12 @@ export async function searchGitHub(
   overrideKeywords?: string[],
   limit = 15,
 ): Promise<RawCandidate[]> {
-  const keywords = (overrideKeywords ?? extractKeywords(description, 4)).join(" ");
+  const keywordList = overrideKeywords ?? extractKeywords(description, 4);
+  // An all-stop-word description yields no keywords, which would send the
+  // bare query " in:name,description,readme" — a request guaranteed to
+  // return noise, against a rate limit of 10/min unauthenticated.
+  if (keywordList.length === 0) return [];
+  const keywords = keywordList.join(" ");
   // Default (best-match) sort, not sort=stars: sorting by stars biases
   // toward giant awesome-lists/mega-repos that merely mention the keywords
   // in a README, which is exactly the keyword-noise failure mode this tool
@@ -234,10 +239,11 @@ export async function searchNpm(
   overrideKeywords?: string[],
   limit = 10,
 ): Promise<RawCandidate[]> {
-  // npm's search API 400s if `text` is outside 2-64 chars (ERR_TEXT_LENGTH);
-  // keywordsAsQuery keeps whole words under that cap instead of truncating
-  // mid-word or letting the request fail outright.
   const keywords = keywordsAsQuery(overrideKeywords ?? extractKeywords(description, 4));
+  // npm rejects text outside 2-64 chars (ERR_TEXT_LENGTH); skip the round
+  // trip rather than spend it on a guaranteed 400. keywordsAsQuery returns
+  // "" when nothing usable survives its filtering.
+  if (keywords.length === 0) return [];
   const url = `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(keywords)}&size=${limit}`;
   try {
     const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
