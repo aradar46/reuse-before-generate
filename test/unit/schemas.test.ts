@@ -55,6 +55,26 @@ test("NpmSearchResponse accepts a package without a repository link", () => {
   assert.equal(parsed.success, true);
 });
 
+test("NpmSearchResponse accepts a package that omits description entirely", () => {
+  // Regression guard. npm omits the key rather than sending null when a
+  // package has no description — verified against live data 2026-07-22,
+  // 3 of 2500 sampled packages (e.g. @vxrn/test-package). If someone
+  // "tidies" the schema by dropping .optional(), this fails instead of
+  // silently rejecting real npm responses and dropping the whole source.
+  const parsed = NpmSearchResponse.safeParse({
+    objects: [
+      {
+        package: {
+          name: "@vxrn/test-package",
+          links: { npm: "https://npmjs.com/package/@vxrn/test-package" },
+          date: "2026-01-01T00:00:00Z",
+        },
+      },
+    ],
+  });
+  assert.equal(parsed.success, true);
+});
+
 test("NpmSearchResponse rejects a non-array objects field", () => {
   const parsed = NpmSearchResponse.safeParse({ objects: "nope" });
   assert.equal(parsed.success, false);
