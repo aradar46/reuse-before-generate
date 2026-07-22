@@ -9,7 +9,12 @@
 **Tech Stack:** TypeScript 5.7 (ES2022, NodeNext), Node 25 (built-in `node:test` runner — no new test dependency), zod 3.25 (already a dependency), `@modelcontextprotocol/sdk` 1.29.
 
 **Verified facts this plan relies on:**
-- Node 25.2.1 is installed; `node --test` works natively.
+- Node 25.2.1 is installed; `node --test` works natively and strips TypeScript, so
+  `.test.ts` files run directly.
+- **The test script must use a glob, not a bare directory.** `node --test test/unit/`
+  fails on Node 25 with `MODULE_NOT_FOUND` (it tries to resolve the directory as a
+  module). The working form is `node --test test/unit/*.test.ts`. Verified 2026-07-22.
+  Every task in this plan that shows `npm test` assumes the glob form.
 - PyPI still has **no** JSON search API — `https://pypi.org/search/?q=...&format=json` returns `text/html`. Name-guessing plus a GitHub `language:python` lane is the correct approach (Task 16).
 - A GitHub query with `language:python` returns few enough results that 0-star repos surface naturally (verified: 12 total results, three of them 0-4 stars).
 - `node --test test/` currently picks up `test/fixtures.mjs` and fails on live network — unit tests therefore go in `test/unit/`, and the runner must be pointed at that directory specifically.
@@ -58,12 +63,11 @@ Create `test/unit/result.test.ts`:
 ```ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ok, err, isOk } from "../../dist/result.js";
+import { ok, err } from "../../dist/result.js";
 
-test("ok() wraps a value and is recognized by isOk", () => {
+test("ok() wraps a value and narrows to the success branch", () => {
   const r = ok("github", [1, 2]);
   assert.equal(r.ok, true);
-  assert.equal(isOk(r), true);
   if (r.ok) {
     assert.equal(r.source, "github");
     assert.deepEqual(r.value, [1, 2]);
@@ -73,7 +77,6 @@ test("ok() wraps a value and is recognized by isOk", () => {
 test("err() carries source and reason and is not ok", () => {
   const r = err("npm", "HTTP 503");
   assert.equal(r.ok, false);
-  assert.equal(isOk(r), false);
   if (!r.ok) {
     assert.equal(r.source, "npm");
     assert.equal(r.reason, "HTTP 503");
@@ -105,13 +108,16 @@ export function ok<T>(source: Source, value: T): Result<T> {
   return { ok: true, source, value };
 }
 
+// T is unused in the error branch and is pinned by the caller's return-type
+// annotation, not by the arguments. Every call site declares its own
+// `Promise<Result<...>>`, so inference works; called somewhere unannotated,
+// T would silently widen to unknown. Keep the annotations.
 export function err<T>(source: Source, reason: string): Result<T> {
   return { ok: false, source, reason };
 }
 
-export function isOk<T>(r: Result<T>): r is { ok: true; source: Source; value: T } {
-  return r.ok;
-}
+// No isOk() guard: `r.ok` narrows the union on its own, so a helper would be
+// unused indirection. Checks throughout the codebase are plain `if (r.ok)`.
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -124,8 +130,11 @@ Expected: PASS — 2 tests.
 In `package.json`, add to `"scripts"`:
 
 ```json
-"test": "npm run build && node --test test/unit/"
+"test": "npm run build && node --test test/unit/*.test.ts"
 ```
+
+The glob is required: a bare `test/unit/` directory argument fails on Node 25 with
+`MODULE_NOT_FOUND`.
 
 ```bash
 git add src/result.ts test/unit/result.test.ts package.json
@@ -808,6 +817,18 @@ git commit -m "Distinguish unparseable activity dates from missing ones"
 - Test: `test/unit/search-pipeline.test.ts`
 
 **Context:** This is the largest task. It replaces every direct `fetch` in `search.ts` with `httpGet`, parses each response with the Task 3 schemas, and changes each source function to return `Result<RawCandidate[]>`. `searchAll` returns all three Results rather than a flat array.
+
+**Carried over from Task 5 — must be done as part of this task:**
+
+1. `test/unit/search-guards.test.ts` stubs `globalThis.fetch`. Once search.ts
+   routes through `http.ts`, that stub intercepts nothing and those five tests
+   pass **vacuously** (0 calls always, guard firing or not). Convert them to
+   `setFetcher`/`resetFetcher`, then verify they still fail when the guard is
+   removed — a test that cannot fail is worse than no test.
+2. `searchPyPI` builds name guesses via `keywords.join("-")` without filtering
+   per-entry content, so `["", ""]` requests `pypi.org/pypi/-/json`. Apply
+   `meaningfulKeywords()` (exported from search.ts) there too, as the other
+   two lanes already do.
 
 - [ ] **Step 1: Write the failing test**
 

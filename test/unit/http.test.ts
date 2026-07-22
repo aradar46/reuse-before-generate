@@ -1,0 +1,58 @@
+import { test, afterEach } from "node:test";
+import assert from "node:assert/strict";
+import { httpGet, setFetcher, resetFetcher } from "../../dist/http.js";
+
+afterEach(() => resetFetcher());
+
+test("httpGet routes through the injected fetcher", async () => {
+  let seenUrl = "";
+  setFetcher(async (url) => {
+    seenUrl = url;
+    return new Response("{}", { status: 200 });
+  });
+
+  const res = await httpGet("https://example.test/a", { "User-Agent": "x" });
+
+  assert.equal(seenUrl, "https://example.test/a");
+  assert.equal(res.status, 200);
+});
+
+test("httpGet passes headers through", async () => {
+  let seenHeaders: Record<string, string> = {};
+  setFetcher(async (_url, init) => {
+    seenHeaders = (init?.headers ?? {}) as Record<string, string>;
+    return new Response("{}", { status: 200 });
+  });
+
+  await httpGet("https://example.test/a", { Authorization: "Bearer t" });
+
+  assert.equal(seenHeaders.Authorization, "Bearer t");
+});
+
+test("httpGet attaches an abort signal so requests cannot hang forever", async () => {
+  let hadSignal = false;
+  setFetcher(async (_url, init) => {
+    hadSignal = init?.signal instanceof AbortSignal;
+    return new Response("{}", { status: 200 });
+  });
+
+  await httpGet("https://example.test/a", {});
+
+  assert.equal(hadSignal, true);
+});
+
+test("setFetcher still works after resetFetcher", async () => {
+  setFetcher(async () => new Response("stub", { status: 418 }));
+  resetFetcher();
+  // Deliberately does NOT assert the default fetcher is the real `fetch` —
+  // that would mean making a network call in a unit test. This checks only
+  // that the injection point survives a reset, which is what the other
+  // tests depend on via afterEach.
+  let called = false;
+  setFetcher(async () => {
+    called = true;
+    return new Response("{}", { status: 200 });
+  });
+  await httpGet("https://example.test/a", {});
+  assert.equal(called, true);
+});

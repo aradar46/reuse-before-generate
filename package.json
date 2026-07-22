@@ -1,6 +1,6 @@
 {
   "name": "reuse-before-generate",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP tool: before scaffolding a new project, check whether it already exists and suggest extending a maintained alternative instead of rebuilding.",
   "type": "module",
   "bin": {
@@ -10,11 +10,38 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "dev": "tsc -p tsconfig.json --watch"
+    "check": "npm run build && node dist/cli.js",
+    "dev": "tsc -p tsconfig.json --watch",
+    "eval": "npm run build && node test/eval/run.mjs",
+    "test": "npm run build && REUSE_BEFORE_GENERATE_STATE_DIR=.test-state node --test test/unit/*.test.ts",
+    "prepublishOnly": "npm run build && npm test"
   },
-  "files": [
-    "dist"
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "code-reuse",
+    "search",
+    "github",
+    "npm",
+    "python",
+    "claude",
+    "ai-agent"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aradar46/reuse-before-generate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aradar46/reuse-before-generate/issues"
+  },
+  "homepage": "https://github.com/aradar46/reuse-before-generate#readme",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "//engines": "Running the published dist/ needs only Node 18 (global fetch, AbortSignal.timeout). Running the TEST SUITE needs Node 22.6+, which strips TypeScript from .test.ts files natively.",
   "engines": {
     "node": ">=18"
   },

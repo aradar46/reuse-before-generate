@@ -24,28 +24,53 @@ export interface VerifiedCandidate extends RawCandidate {
 
 const MAINTAINED_WINDOW_DAYS = 365; // pushed/published within the last year
 
-function daysSince(iso: string | undefined): number | null {
-  if (!iso) return null;
+type ActivityAge =
+  | { kind: "known"; days: number }
+  | { kind: "missing" }
+  | { kind: "unparseable"; raw: string };
+
+// Every source sends a full ISO 8601 timestamp (GitHub `pushed_at`, npm
+// `date`), so anything that is not at least
+// YYYY-MM-DD is bad data, not an unusual date format. Requiring that shape
+// matters because `new Date()` is far more permissive than it looks: "0"
+// parses as the year 2000 and "99" as 1998, both perfectly valid Dates. Left
+// to Number.isNaN alone, that garbage would be reported as a genuinely
+// stale project ~9700 days old rather than as the upstream problem it is.
+const ISO_DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
+
+function activityAge(iso: string | undefined): ActivityAge {
+  if (!iso) return { kind: "missing" };
+  // A missing date and a date we could not parse are different upstream
+  // problems: the first is normal for some npm records, the second means
+  // the response shape changed or the registry emitted something odd.
+  if (!ISO_DATE_PREFIX.test(iso)) return { kind: "unparseable", raw: iso };
   const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return null;
-  return Math.floor((Date.now() - then) / (1000 * 60 * 60 * 24));
+  if (Number.isNaN(then)) return { kind: "unparseable", raw: iso };
+  return { kind: "known", days: Math.floor((Date.now() - then) / (1000 * 60 * 60 * 24)) };
 }
 
 export async function verifyCandidate(
   candidate: RawCandidate,
 ): Promise<VerifiedCandidate> {
-  const days = daysSince(candidate.pushedAt);
+  const age = activityAge(candidate.pushedAt);
+  const days = age.kind === "known" ? age.days : null;
 
   if (candidate.archived) {
+    // Archived wins as the headline reason — it is the decisive, actionable
+    // fact — but a bad date is still appended rather than swallowed.
+    // Otherwise shape drift stays invisible for exactly the candidates most
+    // likely to expose it.
+    const dateNote =
+      age.kind === "unparseable" ? ` (also: unparseable activity date: ${age.raw})` : "";
     return {
       ...candidate,
       maintained: false,
-      maintenanceReason: "repository is archived",
+      maintenanceReason: `repository is archived${dateNote}`,
       daysSinceLastActivity: days,
     };
   }
 
-  if (days === null) {
+  if (age.kind === "missing") {
     return {
       ...candidate,
       maintained: false,
@@ -54,20 +79,29 @@ export async function verifyCandidate(
     };
   }
 
-  if (days > MAINTAINED_WINDOW_DAYS) {
+  if (age.kind === "unparseable") {
     return {
       ...candidate,
       maintained: false,
-      maintenanceReason: `no activity in ${days} days (> ${MAINTAINED_WINDOW_DAYS}-day window)`,
-      daysSinceLastActivity: days,
+      maintenanceReason: `unparseable activity date: ${age.raw}`,
+      daysSinceLastActivity: null,
+    };
+  }
+
+  if (age.days > MAINTAINED_WINDOW_DAYS) {
+    return {
+      ...candidate,
+      maintained: false,
+      maintenanceReason: `no activity in ${age.days} days (> ${MAINTAINED_WINDOW_DAYS}-day window)`,
+      daysSinceLastActivity: age.days,
     };
   }
 
   return {
     ...candidate,
     maintained: true,
-    maintenanceReason: `active within the last ${days} days`,
-    daysSinceLastActivity: days,
+    maintenanceReason: `active within the last ${age.days} days`,
+    daysSinceLastActivity: age.days,
   };
 }
 

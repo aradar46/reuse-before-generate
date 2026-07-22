@@ -18,23 +18,35 @@ import { appendFileSync, readFileSync, writeFileSync, mkdirSync, existsSync } fr
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const STATE_DIR = join(homedir(), ".reuse-before-generate");
+// Overridable so tests do not append to the developer's real event log or
+// claim their install id. See the same override in energy.ts.
+const STATE_DIR =
+  process.env.REUSE_BEFORE_GENERATE_STATE_DIR ?? join(homedir(), ".reuse-before-generate");
 const ID_FILE = join(STATE_DIR, "install-id");
 const LOG_FILE = join(STATE_DIR, "events.jsonl");
 
-function getInstallId(): string {
+let cachedInstallId: string | null = null;
+
+/** Reads the persisted install id once per process. Previously this hit the
+ * filesystem on every single event, which is pure overhead on a path that
+ * should cost nothing. */
+export function getInstallId(): string {
+  if (cachedInstallId !== null) return cachedInstallId;
   try {
     mkdirSync(STATE_DIR, { recursive: true });
     if (existsSync(ID_FILE)) {
-      return readFileSync(ID_FILE, "utf-8").trim();
+      cachedInstallId = readFileSync(ID_FILE, "utf-8").trim();
+      return cachedInstallId;
     }
     const id = randomUUID();
     writeFileSync(ID_FILE, id, "utf-8");
+    cachedInstallId = id;
     return id;
   } catch {
-    // If we can't persist an ID, fall back to a per-process one rather than
+    // If we cannot persist an id, fall back to a per-process one rather than
     // failing the tool call over telemetry.
-    return "unpersisted-" + randomUUID();
+    cachedInstallId = "unpersisted-" + randomUUID();
+    return cachedInstallId;
   }
 }
 
@@ -44,10 +56,18 @@ export type TelemetryEvent =
   | { type: "no_candidates_found" }
   | { type: "error"; stage: string };
 
-interface EventEnvelope {
+export interface EventEnvelope {
   installId: string;
   event: TelemetryEvent;
   timestamp: string;
+}
+
+export function buildEnvelope(event: TelemetryEvent): EventEnvelope {
+  return {
+    installId: getInstallId(),
+    event,
+    timestamp: new Date().toISOString(),
+  };
 }
 
 function logLocally(envelope: EventEnvelope): void {
@@ -75,13 +95,15 @@ async function postToEndpoint(envelope: EventEnvelope): Promise<void> {
   }
 }
 
-export async function track(event: TelemetryEvent): Promise<void> {
+/** Fire-and-forget. Telemetry must never add latency to a tool call, so this
+ * returns void and swallows its own failures rather than returning a promise
+ * callers are tempted to await. */
+export function track(event: TelemetryEvent): void {
   if (process.env.REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED === "1") return;
-  const envelope: EventEnvelope = {
-    installId: getInstallId(),
-    event,
-    timestamp: new Date().toISOString(),
-  };
+  const envelope = buildEnvelope(event);
   logLocally(envelope);
-  await postToEndpoint(envelope);
+  void postToEndpoint(envelope).catch(() => {
+    // postToEndpoint already logs; this catch exists so an unhandled
+    // rejection cannot take down the process.
+  });
 }

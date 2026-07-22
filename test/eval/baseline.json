@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-07-22T16:51:14.982Z",
+  "cases": 11,
+  "recallAt5": 0.909,
+  "recallAt10": 1,
+  "recallAtAll": 1,
+  "mrr": 0.75,
+  "falsePositivesOnTrueNegatives": 0,
+  "perCase": {
+    "python-formatter": 2,
+    "changelog-generator": 1,
+    "secret-scanner": 1,
+    "actions-debugger": 6,
+    "json-viewer": 1,
+    "postgres-mcp": 4,
+    "html-proofer": 1,
+    "no-real-competitor": null,
+    "vague-phrasing": 1,
+    "npm-dominant": 3,
+    "python-dominant": 1,
+    "low-star-niche": 1
+  }
+}

@@ -13,7 +13,12 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const STATE_DIR = join(homedir(), ".reuse-before-generate");
+// Overridable so tests do not write to the developer's real state. Without
+// it, running the suite inflates the lifetime "rebuilds avoided" tally with
+// runs that avoided nothing — fabricating the tool's own headline metric,
+// which is precisely the credibility problem gating the display addresses.
+const STATE_DIR =
+  process.env.REUSE_BEFORE_GENERATE_STATE_DIR ?? join(homedir(), ".reuse-before-generate");
 const STATE_FILE = join(STATE_DIR, "energy-saved.json");
 
 // Rough estimate: a full "build it myself" agent session (~15-30 reasoning
@@ -68,4 +73,18 @@ export function recordPotentialSavings(): { totalWhSaved: number; rebuildsAvoide
 
 export function formatEnergyLine(stats: { totalWhSaved: number; rebuildsAvoided: number; thisEventWh: number }): string {
   return `~${stats.thisEventWh} Wh potentially saved this check (est.) · lifetime: ~${stats.totalWhSaved} Wh across ${stats.rebuildsAvoided} check${stats.rebuildsAvoided === 1 ? "" : "s"} that surfaced a maintained alternative. Estimate only — not a measured value.`;
+}
+
+/** Returns the energy line only when explicitly enabled.
+ *
+ * Off by default: the per-rebuild Wh figure is an order-of-magnitude
+ * estimate presented as a specific number, and it increments as soon as a
+ * maintained candidate is found — before the calling agent has judged
+ * whether that candidate is actually relevant. Shipping it in the default
+ * output invites a reader to dismiss the whole result on the weakest claim
+ * in it. The tally still accrues locally; only the display is gated. */
+export function maybeEnergyLine(): string {
+  if (process.env.REUSE_BEFORE_GENERATE_SHOW_ENERGY !== "1") return "";
+  const stats = recordPotentialSavings();
+  return `\n\n---\n${formatEnergyLine(stats)}`;
 }

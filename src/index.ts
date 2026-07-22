@@ -2,7 +2,7 @@
 // reuse-before-generate MCP server.
 //
 // One tool: check_before_building. Call it before scaffolding a new project
-// (or a significant new module). It searches GitHub/npm/PyPI and verifies
+// (or a significant new module). It searches GitHub/npm/Python and verifies
 // which hits are actually maintained, then hands the calling agent a
 // scoring prompt so IT performs the semantic re-rank using its own running
 // session — no separate billed LLM API call from this server. This keeps
@@ -11,15 +11,16 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { searchAll } from "./search.js";
+import { searchAllResults } from "./search.js";
 import { verifyAll } from "./verify.js";
 import { buildRerankPrompt } from "./rerank.js";
-import { recordPotentialSavings, formatEnergyLine } from "./energy.js";
+import { formatSourceFailures } from "./report.js";
+import { maybeEnergyLine } from "./energy.js";
 import { track } from "./telemetry.js";
 
 const server = new McpServer({
   name: "reuse-before-generate",
-  version: "0.1.0",
+  version: "0.2.0",
 });
 
 server.registerTool(
@@ -27,7 +28,7 @@ server.registerTool(
   {
     description:
       "Run this BEFORE scaffolding a new project or a substantial new module. " +
-      "Searches GitHub, npm, and PyPI for existing projects that already do " +
+      "Searches GitHub, npm, and Python repos for existing projects that already do " +
       "what's being proposed and filters out abandoned/unmaintained results. " +
       "Returns verified-maintained candidates plus scoring instructions — " +
       "the calling agent (you) must then judge semantic relevance itself and " +
@@ -53,17 +54,23 @@ server.registerTool(
     }),
   },
   async ({ description, keywords }) => {
-    await track({ type: "tool_invoked" });
+    track({ type: "tool_invoked" });
 
     try {
-      const raw = await searchAll(description, keywords);
+      const results = await searchAllResults(description, keywords);
+      const raw = results.flatMap((r) => (r.ok ? r.value : []));
+      const failureNote = formatSourceFailures(results);
+      const suffix = failureNote ? `\n\n${failureNote}` : "";
+
       if (raw.length === 0) {
-        await track({ type: "no_candidates_found" });
+        track({ type: "no_candidates_found" });
         return {
           content: [
             {
               type: "text",
-              text: "No candidates found on GitHub, npm, or PyPI for this description. Nothing to reuse — clear to build.",
+              text:
+                "No candidates found on GitHub, npm, or in Python repos for this description. Nothing to reuse — clear to build." +
+                suffix,
             },
           ],
         };
@@ -73,41 +80,33 @@ server.registerTool(
       const maintained = verified.filter((c) => c.maintained);
 
       if (maintained.length === 0) {
-        await track({
-          type: "candidates_found",
-          count: raw.length,
-          maintainedCount: 0,
-        });
+        track({ type: "candidates_found", count: raw.length, maintainedCount: 0 });
         return {
           content: [
             {
               type: "text",
-              text: `Found ${raw.length} superficially similar result(s), but none are actively maintained (all abandoned, archived, or too low-traction to trust). Not recommending any as alternatives — clear to build, but consider why prior attempts stalled.`,
+              text:
+                `Found ${raw.length} superficially similar result(s), but none are actively maintained (all abandoned, archived, or too low-traction to trust). Not recommending any as alternatives — clear to build, but consider why prior attempts stalled.` +
+                suffix,
             },
           ],
         };
       }
 
-      await track({
+      track({
         type: "candidates_found",
         count: raw.length,
         maintainedCount: maintained.length,
       });
 
-      const energyStats = recordPotentialSavings();
       const prompt = buildRerankPrompt(description, maintained);
+      const energyLine = maybeEnergyLine();
 
       return {
-        content: [
-          {
-            type: "text",
-            text:
-              `${prompt}\n\n---\n${formatEnergyLine(energyStats)}`,
-          },
-        ],
+        content: [{ type: "text", text: `${prompt}${energyLine}${suffix}` }],
       };
     } catch (err) {
-      await track({ type: "error", stage: "check_before_building" });
+      track({ type: "error", stage: "check_before_building" });
       const message = (err as Error).message;
       return {
         content: [
