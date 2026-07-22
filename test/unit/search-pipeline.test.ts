@@ -62,9 +62,12 @@ test("searchAllResults returns ok results with candidates from each source", asy
 });
 
 test("an HTTP error on one source does not fail the others", async () => {
+  // 500, not 403: this test is about partial-failure isolation, and 403
+  // additionally triggers the 2s retry backoff, which has nothing to do
+  // with what is being asserted here. Retry has its own test below.
   setFetcher(
     routeFetcher({
-      github: () => new Response("rate limited", { status: 403 }),
+      github: () => new Response("server error", { status: 500 }),
       npm: () => new Response(JSON.stringify(npmBody), { status: 200 }),
     }),
   );
@@ -74,8 +77,58 @@ test("an HTTP error on one source does not fail the others", async () => {
   const npm = results.find((r) => r.source === "npm");
 
   assert.equal(github?.ok, false);
-  if (github && !github.ok) assert.match(github.reason, /403/);
+  if (github && !github.ok) assert.match(github.reason, /500/);
   assert.equal(npm?.ok, true);
+});
+
+test("a 403 is retried once and succeeds on the second attempt", async () => {
+  // The retry exists because GitHub's unauthenticated search has both a
+  // 10/min primary limit and a separate burst throttle, and both surface as
+  // 403. Untested, a regression here (reusing the stale response,
+  // misparsing Retry-After, dropping the second call) would be silent.
+  // Retry-After: 0 keeps the backoff instant without touching the logic.
+  let githubCalls = 0;
+  setFetcher(
+    routeFetcher({
+      github: () => {
+        githubCalls += 1;
+        if (githubCalls <= 2) {
+          // Both lanes get one 403 first, then succeed.
+          return new Response("rate limited", {
+            status: 403,
+            headers: { "retry-after": "0" },
+          });
+        }
+        return new Response(JSON.stringify(githubBody), { status: 200 });
+      },
+    }),
+  );
+
+  const results = await searchAllResults("python formatter", ["python", "formatter", "code"]);
+  const github = results.find((r) => r.source === "github");
+
+  assert.equal(github?.ok, true);
+  if (github?.ok) assert.equal(github.value[0].id, "psf/black");
+  // Two lanes, each retried once: 2 failed + 2 successful attempts.
+  assert.equal(githubCalls, 4);
+});
+
+test("a 403 that persists through the retry is reported as a failure", async () => {
+  setFetcher(
+    routeFetcher({
+      github: () =>
+        new Response("rate limited", {
+          status: 403,
+          headers: { "retry-after": "0" },
+        }),
+    }),
+  );
+
+  const results = await searchAllResults("python formatter", ["python", "formatter", "code"]);
+  const github = results.find((r) => r.source === "github");
+
+  assert.equal(github?.ok, false);
+  if (github && !github.ok) assert.match(github.reason, /403/);
 });
 
 test("a malformed response shape is reported as a source failure, not a crash", async () => {
