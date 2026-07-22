@@ -126,6 +126,34 @@ situations and are listed here so they are documented somewhere.
 | `REUSE_BEFORE_GENERATE_SHOW_ENERGY=1` | Appends an estimated "Wh saved" line to the tool output. Off by default, deliberately: it is an order-of-magnitude guess, and it increments as soon as a maintained candidate is found — before the agent has judged whether that candidate is actually relevant. It is not a measurement. |
 | `REUSE_BEFORE_GENERATE_STATE_DIR` | Overrides `~/.reuse-before-generate` as the state location. Used by the test suite so test runs never touch real state. |
 
+## Releasing
+
+Four things carry a version and must move together:
+
+1. `package.json` → `version`
+2. `src/index.ts` → the `version` passed to `McpServer`
+3. `server.json` → both `version` and `packages[0].version`
+4. A git tag `vX.Y.Z` plus a GitHub release
+
+Then:
+
+```bash
+npm run build && npm test
+npm publish          # prepublishOnly re-runs build + tests
+git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z
+gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."
+```
+
+**The README inside a published tarball is frozen at publish time.** A
+README fix only reaches the npm package page with a new version, so fix
+docs *before* publishing, not after.
+
+`server.json` describes the server for the
+[official MCP registry](https://registry.modelcontextprotocol.io). The
+`mcpName` field in `package.json` must match its `name` — that is how the
+registry verifies the npm package and the registry entry belong to the
+same owner.
+
 ## Development
 
 ```bash

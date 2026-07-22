@@ -1,5 +1,9 @@
 # reuse-before-generate
 
+[![npm](https://img.shields.io/npm/v/reuse-before-generate)](https://www.npmjs.com/package/reuse-before-generate)
+[![CI](https://github.com/aradar46/reuse-before-generate/actions/workflows/ci.yml/badge.svg)](https://github.com/aradar46/reuse-before-generate/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/reuse-before-generate)](LICENSE)
+
 **Your idea probably already exists. Find out before you build it, not after.**
 
 Here is how it usually goes. You have an idea. You ask a frontier model

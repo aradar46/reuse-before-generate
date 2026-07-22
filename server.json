@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.aradar46/reuse-before-generate",
+  "title": "Reuse Before Generate",
+  "description": "Checks whether a project idea already exists before an agent builds it. Searches GitHub, npm and Python repos, filters out abandoned results, and returns maintained alternatives for the calling agent to judge.",
+  "version": "0.2.2",
+  "repository": {
+    "url": "https://github.com/aradar46/reuse-before-generate",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "reuse-before-generate",
+      "version": "0.2.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GITHUB_TOKEN",
+          "description": "Optional GitHub token. Raises the search rate limit from 10 requests/minute to 30.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
