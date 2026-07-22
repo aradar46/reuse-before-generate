@@ -9,7 +9,12 @@
 **Tech Stack:** TypeScript 5.7 (ES2022, NodeNext), Node 25 (built-in `node:test` runner — no new test dependency), zod 3.25 (already a dependency), `@modelcontextprotocol/sdk` 1.29.
 
 **Verified facts this plan relies on:**
-- Node 25.2.1 is installed; `node --test` works natively.
+- Node 25.2.1 is installed; `node --test` works natively and strips TypeScript, so
+  `.test.ts` files run directly.
+- **The test script must use a glob, not a bare directory.** `node --test test/unit/`
+  fails on Node 25 with `MODULE_NOT_FOUND` (it tries to resolve the directory as a
+  module). The working form is `node --test test/unit/*.test.ts`. Verified 2026-07-22.
+  Every task in this plan that shows `npm test` assumes the glob form.
 - PyPI still has **no** JSON search API — `https://pypi.org/search/?q=...&format=json` returns `text/html`. Name-guessing plus a GitHub `language:python` lane is the correct approach (Task 16).
 - A GitHub query with `language:python` returns few enough results that 0-star repos surface naturally (verified: 12 total results, three of them 0-4 stars).
 - `node --test test/` currently picks up `test/fixtures.mjs` and fails on live network — unit tests therefore go in `test/unit/`, and the runner must be pointed at that directory specifically.
@@ -124,8 +129,11 @@ Expected: PASS — 2 tests.
 In `package.json`, add to `"scripts"`:
 
 ```json
-"test": "npm run build && node --test test/unit/"
+"test": "npm run build && node --test test/unit/*.test.ts"
 ```
+
+The glob is required: a bare `test/unit/` directory argument fails on Node 25 with
+`MODULE_NOT_FOUND`.
 
 ```bash
 git add src/result.ts test/unit/result.test.ts package.json
