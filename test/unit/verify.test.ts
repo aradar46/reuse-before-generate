@@ -54,6 +54,39 @@ test("a malformed date is reported distinctly from a missing one", async () => {
   assert.equal(v.maintenanceReason, "unparseable activity date: not-a-date");
 });
 
+test("a bare numeric date is unparseable, not a very old project", async () => {
+  // Regression: `new Date("0")` yields the year 2000 and `new Date("99")`
+  // yields 1998 — both valid Dates, so Number.isNaN alone lets them through
+  // and reports them as genuinely stale projects ~9700 days old. Every
+  // source sends full ISO 8601, so a bare number is bad data.
+  for (const raw of ["0", "99", "2024", "0000"]) {
+    const v = await verifyCandidate({ ...base, pushedAt: raw });
+    assert.equal(v.maintained, false, `${raw} should not be maintained`);
+    assert.equal(v.maintenanceReason, `unparseable activity date: ${raw}`);
+    assert.equal(v.daysSinceLastActivity, null);
+  }
+});
+
+test("an empty-string date is reported as missing", async () => {
+  const v = await verifyCandidate({ ...base, pushedAt: "" });
+  assert.equal(v.maintained, false);
+  assert.equal(v.maintenanceReason, "no activity date available");
+});
+
+test("an archived repo with a bad date reports both facts", async () => {
+  // Archived is the headline reason, but swallowing the date problem would
+  // hide shape drift on exactly the candidates most likely to expose it.
+  const v = await verifyCandidate({ ...base, pushedAt: "not-a-date", archived: true });
+  assert.equal(v.maintained, false);
+  assert.match(v.maintenanceReason, /archived/);
+  assert.match(v.maintenanceReason, /unparseable activity date: not-a-date/);
+});
+
+test("an archived repo with a good date reports only the archive status", async () => {
+  const v = await verifyCandidate({ ...base, pushedAt: daysAgo(10), archived: true });
+  assert.equal(v.maintenanceReason, "repository is archived");
+});
+
 test("a future date is treated as active, not as an error", async () => {
   const v = await verifyCandidate({ ...base, pushedAt: daysAgo(-2) });
   assert.equal(v.maintained, true);
