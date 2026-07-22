@@ -1,25 +1,55 @@
 # reuse-before-generate
 
-An MCP tool for coding agents: **before scaffolding a new project or module,
-check whether it already exists.** Searches GitHub, npm, and Python repos, filters to
-actually-maintained candidates, and hands the calling agent a scoring prompt
-so it re-ranks by real semantic similarity (not keyword overlap) itself —
-presenting at most 3 alternatives with a concrete "extend this instead of
-rebuilding" suggestion each.
+**Stop your AI agent from rebuilding something that already exists.**
 
-No LLM API key required. The semantic judgment happens in whichever agent
-calls the tool, using the session already running.
+Ask an agent to build a changelog generator and it will happily write one
+from scratch — even though `git-cliff` already does it, better, and is
+actively maintained.
 
-## Install
+This is an MCP server. It gives your agent one job: before scaffolding
+anything new, go check whether someone already built it. It searches GitHub,
+npm, and Python repos, throws away everything abandoned, and hands your
+agent the survivors to judge.
 
-One line, no clone, no build:
+No API key. No account. One line to install.
 
 ```bash
 claude mcp add reuse-before-generate -- npx -y reuse-before-generate
 ```
 
-Or add directly to `.mcp.json` (works in Cursor, Claude Desktop, and any
-other MCP client):
+> **Not published to npm yet.** Until it is, install from a clone — see
+> [Running from source](#running-from-source) below.
+
+---
+
+## What you get
+
+Ask your agent to build something. Instead of starting immediately, it
+answers like this:
+
+> Before I build this, I checked. 45 results, 32 still maintained. Three
+> genuinely do what you described:
+>
+> 1. **conventional-changelog** (8,486★, updated today) — the ecosystem
+>    standard. Extend this: its preset system already handles the custom
+>    grouping you wanted.
+> 2. **git-cliff** (12,033★, updated today) — a single fast binary, highly
+>    configurable via TOML. Better fit if you don't want Node in the loop.
+> 3. **changelogen** (1,252★, updated this week) — lighter, closest to the
+>    minimal thing you sketched.
+>
+> Want me to extend one of these, or build fresh anyway?
+
+You still decide. It just makes sure you decide *knowing*.
+
+## Install
+
+```bash
+claude mcp add reuse-before-generate -- npx -y reuse-before-generate
+```
+
+Or add it to `.mcp.json` yourself — this works in Cursor, Claude Desktop,
+and any other MCP client:
 
 ```json
 {
@@ -32,11 +62,22 @@ other MCP client):
 }
 ```
 
-Optionally set `GITHUB_TOKEN` in the `env` block to raise GitHub's search
-rate limit from 10/min to 30/min.
+**Optional but recommended:** add a GitHub token. Without one, GitHub limits
+you to 10 searches a minute; with one, 30.
 
-<details>
-<summary>Running from a clone instead (for development)</summary>
+```json
+{
+  "mcpServers": {
+    "reuse-before-generate": {
+      "command": "npx",
+      "args": ["-y", "reuse-before-generate"],
+      "env": { "GITHUB_TOKEN": "ghp_your_token_here" }
+    }
+  }
+}
+```
+
+### Running from source
 
 ```bash
 git clone https://github.com/aradar46/reuse-before-generate
@@ -45,116 +86,107 @@ npm install && npm run build
 claude mcp add reuse-before-generate -- node "$PWD/dist/index.js"
 ```
 
-</details>
-
 ## Make it automatic
 
-The tool is most useful when the agent calls it *without being asked*. Drop
-this into your `CLAUDE.md` (or `.cursorrules`):
+By default your agent only checks when you ask it to. To make it check
+every time, paste this into your `CLAUDE.md` (or `.cursorrules`):
 
 ```markdown
 Before scaffolding a new project or a substantial new module, call
-`check_before_building` first. If it returns a maintained alternative
-scoring 40+, tell me about it and ask whether to extend that instead of
-building from scratch.
+`check_before_building` first. If it finds a maintained alternative that
+really does the job, tell me about it and ask whether to extend that
+instead of building from scratch.
 ```
 
-## Usage
+That one paragraph is the whole point of the tool. Without it, the check
+only happens when you remember to ask.
 
-With it registered, ask your agent something like:
+## Two names, one thing
 
-> Use check_before_building to check if a CLI tool that generates
-> changelogs from conventional commits already exists.
+Mildly confusing, so stating it plainly:
 
-The agent calls the tool, gets back verified-maintained candidates plus
-scoring instructions, and scores and presents the top 3 itself — no separate
-API key, since it uses the session you are already in.
+- **`reuse-before-generate`** is the server — the thing you install.
+- **`check_before_building`** is the tool it provides — the thing your agent
+  calls.
 
-### Why `keywords` is required
+You install the first. Your agent calls the second.
 
-`keywords` is a **required** input, not optional: the schema forces the
-calling agent to infer 3-6 precise search terms from the description before
-it can call the tool at all.
+## Does it actually work?
 
-The mechanical fallback extractor in `search.ts` is measurably weak on
-non-literal or buzzword-heavy descriptions — including this project's own
-README, which is full of "MCP"/"agent"/"server", terms too generic to
-distinguish it from unrelated MCP servers. An agent that already understood
-the user's intent produces far better keywords than string-matching can, and
-making the field required means that inference step cannot be silently
-skipped.
+It's measured, not vibes. There are 12 test cases with known right answers
+— "find `gitleaks` from a description of a secret scanner", that sort of
+thing — and the search is scored on what position the right answer comes
+back at.
 
-The field's own description tells the agent to pick the word a *maintainer*
-would use for what the tool IS, rather than the word describing the user's
-problem. That distinction is not cosmetic — see
-[docs/findings.md](docs/findings.md) for the evaluation that produced it.
+Current scores:
 
-## How it works
+| | |
+|---|---|
+| Found the right tool in the top 10 | **11 of 11** |
+| Found it in the top 5 | 10 of 11 |
+| Made something up when nothing existed | never |
 
-1. **Search** (`src/search.ts`) — pulls candidates from GitHub repo search
-   (two lanes: a primary relevance query plus a `stars:0..3` lane that
-   catches tiny/new repos the primary query structurally buries), npm
-   registry search, and a Python lane (GitHub scoped to
-   `language:python`).
-2. **Verify** (`src/verify.ts`) — filters out archived repos and anything
-   with no activity in the last year. Deliberately does **not** filter on
-   star count: a brand-new 0-star repo doing exactly the job is precisely
-   the duplicate worth catching. Star count is passed to the calling agent
-   as a scoring input instead.
-3. **Re-rank prompt** (`src/rerank.ts`) — builds scoring instructions (not
-   an API call) describing how to score 0-100 relevance and write a
-   per-candidate extend-instead-of-rebuild suggestion.
-4. **Report** (`src/index.ts`) — returns the candidates and scoring prompt
-   as the tool's output, naming any source that failed so partial results
-   are never mistaken for complete ones.
+That last row matters most. A tool that finds "matches" for everything is
+worse than useless, so one test case describes something deliberately
+absurd that no real tool does. It correctly finds nothing.
 
-## Configuration
+Details, including where it still fails, are in
+**[docs/findings.md](docs/findings.md)**.
+
+## Is it spying on me?
+
+No, and you can check.
+
+It writes one line per call to `~/.reuse-before-generate/events.jsonl`,
+containing a random ID, a timestamp, and how many results were found. That's
+it. **No descriptions, no keywords, no file paths, no code.** It never
+leaves your machine — nothing is uploaded anywhere.
+
+Read it yourself:
+
+```bash
+cat ~/.reuse-before-generate/events.jsonl
+```
+
+Turn it off completely:
+
+```bash
+REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1
+```
+
+## Settings
 
 All optional.
 
-| Variable | Effect |
+| Variable | What it does |
 |---|---|
-| `GITHUB_TOKEN` | Raises the GitHub search rate limit from 10/min to 30/min. Recommended. |
-| `REUSE_BEFORE_GENERATE_SHOW_ENERGY=1` | Appends the estimated Wh-saved line to the output. Off by default — it is an order-of-magnitude estimate that increments before relevance is judged. |
-| `REUSE_BEFORE_GENERATE_TELEMETRY_URL` | POSTs each event to your own collector. Nothing is bundled or defaulted. |
-| `REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1` | Disables event logging entirely. |
-| `REUSE_BEFORE_GENERATE_STATE_DIR` | Overrides `~/.reuse-before-generate` for local state. Used by the test suite so runs do not touch real state. |
+| `GITHUB_TOKEN` | Raises GitHub's search limit from 10/min to 30/min. Recommended. |
+| `REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1` | Stops writing the local log. |
+| `REUSE_BEFORE_GENERATE_SHOW_ENERGY=1` | Shows an estimated "energy saved" line. Off by default — it's a rough guess, not a measurement. |
+| `REUSE_BEFORE_GENERATE_TELEMETRY_URL` | Sends events to your own collector, if you want one. Nothing is bundled. |
 
-Events carry an anonymous per-install UUID and nothing else identifying — no
-descriptions, no file paths, no query content. They are written to
-`~/.reuse-before-generate/events.jsonl`, inspectable with zero infra.
+## Where it still falls short
 
-## Development
+Honest list, because you'll hit these:
 
-```bash
-npm test                                              # offline unit tests
-npm run check -- "<description>" --keywords a,b,c     # drive the pipeline locally
-npm run eval                                          # scored recall against live APIs
-npm run eval -- --diff                                # compare to the committed baseline
-npm run eval -- --case json-viewer                    # iterate on one case
-```
+- **Bad search terms miss real tools.** If you describe a JSON viewer as a
+  "pretty-printer", it may find nothing — real ones call themselves
+  "viewers". The agent is told to think about how a maintainer would
+  describe their own tool, but it doesn't always get it right.
+- **Very small or oddly-named repos are hard to find.** GitHub's own search
+  buries them. There's a dedicated search lane for this and it helps, but
+  doesn't fully solve it.
+- **"Maintained" just means "touched in the last year."** It doesn't check
+  whether issues get answered or whether the project is actually healthy.
 
-`npm run check` is the fast loop for search-quality work — it prints
-per-source counts, any source failures, and the ranked candidates without
-needing an agent session.
+All measured and written up in [docs/findings.md](docs/findings.md).
 
-`npm run eval` hits live GitHub and npm, and is deliberately **not** part of
-`npm test`: upstream ranking drifts for reasons unrelated to this code, and
-a flaky merge gate gets ignored, then disabled, then deleted. It runs
-weekly in CI instead.
+## More
 
-Running the published `dist/` needs Node 18+. Running the test suite needs
-Node 22.6+, which strips TypeScript from `.test.ts` files natively.
-
-## Known gaps
-
-The maintained-vs-abandoned check is recency-only, GitHub's index
-under-serves very small repos, and keyword choice remains fragile in ways a
-single wrong synonym can expose.
-
-All of it is documented with the evidence in
-**[docs/findings.md](docs/findings.md)**, along with the eval methodology
-and a trap worth knowing about rate limits silently corrupting scores.
+- [How it works](docs/how-it-works.md) — the pipeline, and why the server
+  never calls an LLM itself
+- [Findings](docs/findings.md) — what's been measured, and what's still broken
+- [Contributing](docs/how-it-works.md#development) — tests, local CLI, eval
 
 ## License
 
