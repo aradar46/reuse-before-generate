@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  schedule:
+    # Weekly recall check. GitHub's search ranking drifts on its own, so this
+    # surfaces regressions that no code change caused.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # 24, not 22: the suite runs .test.ts directly via node --test,
+          # which needs native TypeScript stripping (22.6+ behind a flag,
+          # unflagged from 23.6). The published dist/ still supports Node 18
+          # — see the engines note in package.json.
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  eval:
+    name: Recall eval (live network)
+    # Never on pull_request: this hits live GitHub search, whose ranking
+    # changes for reasons unrelated to this repository. A flaky merge gate
+    # gets ignored, then disabled, then deleted.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node test/eval/run.mjs --diff
+        env:
+          # Raises the search rate limit from 10/min to 30/min. Without it
+          # the run self-throttles and scores 403s as recall misses.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
