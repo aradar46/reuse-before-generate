@@ -94,6 +94,18 @@ function truncateToChars(input: string, maxChars: number): string {
   return endsMidPair ? cut.slice(0, -1) : cut;
 }
 
+/** Trims and drops entries too short to carry meaning. The agent-supplied
+ * `keywords` array is schema-checked for length (3-6 entries) but not for
+ * per-entry content, so blanks and single characters are reachable from a
+ * real tool call. Both search lanes need this, not just npm: a query built
+ * from `["", " ", "a"]` is "   a", which returns pure noise while still
+ * costing a request against GitHub's 10/min unauthenticated limit. */
+export function meaningfulKeywords(keywords: string[]): string[] {
+  return keywords
+    .map((kw) => kw.trim())
+    .filter((kw) => kw.length >= MIN_QUERY_CHARS);
+}
+
 /** npm's search API rejects `text` outside 2-64 chars (ERR_TEXT_LENGTH);
  * GitHub has no such hard cap but a shorter query is also a tighter query
  * there. Joins keywords space-separated, dropping trailing words that would
@@ -103,15 +115,11 @@ function truncateToChars(input: string, maxChars: number): string {
  * Returns "" when nothing usable survives. Callers must treat that as "skip
  * the request" rather than sending it — see the guard in searchNpm. */
 export function keywordsAsQuery(keywords: string[], maxChars = 64): string {
-  // Drop blanks and single characters up front. Blanks left in contribute
-  // nothing but still consume separator characters, producing queries like
-  // "    json"; single chars are below npm's floor of 2, so a query that
-  // reduces to one is rejected just as an empty one is. The agent-supplied
-  // `keywords` array is only schema-checked for length (3-6 entries), not
-  // for per-entry content, so both are reachable from a real tool call.
-  const usable = keywords
-    .map((kw) => kw.trim())
-    .filter((kw) => kw.length >= MIN_QUERY_CHARS);
+  // Blanks left in contribute nothing but still consume separator
+  // characters, producing queries like "    json"; single chars are below
+  // npm's floor of 2, so a query that reduces to one is rejected just as an
+  // empty one is.
+  const usable = meaningfulKeywords(keywords);
 
   let out = "";
   for (const kw of usable) {
@@ -182,10 +190,14 @@ export async function searchGitHub(
   overrideKeywords?: string[],
   limit = 15,
 ): Promise<RawCandidate[]> {
-  const keywordList = overrideKeywords ?? extractKeywords(description, 4);
-  // An all-stop-word description yields no keywords, which would send the
-  // bare query " in:name,description,readme" — a request guaranteed to
-  // return noise, against a rate limit of 10/min unauthenticated.
+  // Filter before the emptiness check, not after: an all-stop-word
+  // description yields no keywords at all, but an agent-supplied array like
+  // ["", " ", "a"] is non-empty while still joining to the junk query
+  // "   a". Both would spend a request against GitHub's 10/min
+  // unauthenticated limit and return nothing but noise.
+  const keywordList = meaningfulKeywords(
+    overrideKeywords ?? extractKeywords(description, 4),
+  );
   if (keywordList.length === 0) return [];
   const keywords = keywordList.join(" ");
   // Default (best-match) sort, not sort=stars: sorting by stars biases
