@@ -20,10 +20,6 @@
   <text x="90" y="440" font-family="Helvetica, Arial, sans-serif" font-size="34"
         fill="#8b949e">Find out before you build it, not after.</text>
 
-  <rect x="90" y="500" width="620" height="62" rx="10" fill="#010409" stroke="#30363d" stroke-width="1"/>
-  <text x="115" y="540" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="22"
-        fill="#7ee787">npx -y reuse-before-generate</text>
-
-  <text x="1190" y="545" font-family="Helvetica, Arial, sans-serif" font-size="22"
-        fill="#8b949e" text-anchor="end">MCP server</text>
+  <text x="90" y="545" font-family="Helvetica, Arial, sans-serif" font-size="22"
+        fill="#8b949e">MCP server</text>
 </svg>
