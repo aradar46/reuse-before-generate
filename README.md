@@ -6,10 +6,10 @@ Ask an agent to build a changelog generator and it will happily write one
 from scratch — even though `git-cliff` already does it, better, and is
 actively maintained.
 
-This is an MCP server. It gives your agent one job: before scaffolding
-anything new, go check whether someone already built it. It searches GitHub,
-npm, and Python repos, throws away everything abandoned, and hands your
-agent the survivors to judge.
+This is an MCP server. It hands your agent one new ability —
+`check_before_building` — which searches GitHub, npm, and Python repos,
+throws away everything abandoned, and gives your agent the survivors to
+judge.
 
 No API key. No account. One line to install.
 
@@ -100,16 +100,6 @@ instead of building from scratch.
 
 That one paragraph is the whole point of the tool. Without it, the check
 only happens when you remember to ask.
-
-## Two names, one thing
-
-Mildly confusing, so stating it plainly:
-
-- **`reuse-before-generate`** is the server — the thing you install.
-- **`check_before_building`** is the tool it provides — the thing your agent
-  calls.
-
-You install the first. Your agent calls the second.
 
 ## Does it actually work?
 
