@@ -12,28 +12,51 @@ calls the tool, using the session already running.
 
 ## Install
 
-```bash
-npm install
-npm run build
-```
-
-Register with an MCP client. For Claude Code:
+One line, no clone, no build:
 
 ```bash
-claude mcp add reuse-before-generate -- node /absolute/path/to/reuse-before-generate/dist/index.js
+claude mcp add reuse-before-generate -- npx -y reuse-before-generate
 ```
 
-Or add directly to `.mcp.json`:
+Or add directly to `.mcp.json` (works in Cursor, Claude Desktop, and any
+other MCP client):
 
 ```json
 {
   "mcpServers": {
     "reuse-before-generate": {
-      "command": "node",
-      "args": ["/absolute/path/to/reuse-before-generate/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "reuse-before-generate"]
     }
   }
 }
+```
+
+Optionally set `GITHUB_TOKEN` in the `env` block to raise GitHub's search
+rate limit from 10/min to 30/min.
+
+<details>
+<summary>Running from a clone instead (for development)</summary>
+
+```bash
+git clone https://github.com/aradar46/reuse-before-generate
+cd reuse-before-generate
+npm install && npm run build
+claude mcp add reuse-before-generate -- node "$PWD/dist/index.js"
+```
+
+</details>
+
+## Make it automatic
+
+The tool is most useful when the agent calls it *without being asked*. Drop
+this into your `CLAUDE.md` (or `.cursorrules`):
+
+```markdown
+Before scaffolding a new project or a substantial new module, call
+`check_before_building` first. If it returns a maintained alternative
+scoring 40+, tell me about it and ask whether to extend that instead of
+building from scratch.
 ```
 
 ## Usage
@@ -46,10 +69,6 @@ With it registered, ask your agent something like:
 The agent calls the tool, gets back verified-maintained candidates plus
 scoring instructions, and scores and presents the top 3 itself — no separate
 API key, since it uses the session you are already in.
-
-For it to happen automatically rather than on request, tell your agent via a
-rule file (e.g. `CLAUDE.md`) to call `check_before_building` before
-scaffolding new projects.
 
 ### Why `keywords` is required
 
