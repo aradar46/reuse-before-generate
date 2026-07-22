@@ -1,0 +1,27 @@
+# Smithery configuration: https://smithery.ai/docs/build/project-config
+#
+# Runs the published npm package over stdio. No build step and no local
+# checkout — npx fetches it.
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      githubToken:
+        type: string
+        title: GitHub token
+        description: >-
+          Optional. Raises GitHub's search rate limit from 10 requests per
+          minute to 30. The server works without it, just more slowly under
+          repeated use.
+    required: []
+  commandFunction:
+    |-
+    (config) => ({
+      command: "npx",
+      args: ["-y", "reuse-before-generate"],
+      env: config.githubToken ? { GITHUB_TOKEN: config.githubToken } : {}
+    })
+  exampleConfig:
+    githubToken: ghp_exampleTokenNotReal000000000000000000
