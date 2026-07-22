@@ -2,6 +2,10 @@
 // free-text project description. Kept deliberately dumb (lexical queries) —
 // semantic filtering happens later in rerank.ts.
 
+import { httpGet } from "./http.js";
+import { GitHubSearchResponse, NpmSearchResponse, PyPIProjectResponse, type GitHubSearchItemT } from "./schemas.js";
+import { ok, err, type Result } from "./result.js";
+
 export interface RawCandidate {
   source: "github" | "npm" | "pypi";
   id: string; // repo full_name, npm package name, or pypi package name
@@ -136,20 +140,11 @@ export function keywordsAsQuery(keywords: string[], maxChars = 64): string {
   return out;
 }
 
-interface GitHubSearchItem {
-  full_name: string;
-  html_url: string;
-  description: string | null;
-  stargazers_count: number;
-  pushed_at: string;
-  archived: boolean;
-}
-
 async function fetchGitHubSearch(
   query: string,
   per_page: number,
   extraParams = "",
-): Promise<GitHubSearchItem[]> {
+): Promise<GitHubSearchItemT[]> {
   const q = encodeURIComponent(query);
   const url = `${GITHUB_API}/search/repositories?q=${q}&per_page=${per_page}${extraParams}`;
   // GitHub's unauthenticated search endpoint has a tight primary limit
@@ -157,22 +152,24 @@ async function fetchGitHubSearch(
   // bursts — both surface as 403. One retry after a short backoff (honoring
   // Retry-After when present) covers the common transient case without
   // adding real latency to the normal path.
-  let res = await fetch(url, { headers: githubHeaders() });
+  let res = await httpGet(url, githubHeaders());
   if (res.status === 403 || res.status === 429) {
     const retryAfterHeader = res.headers.get("retry-after");
     const waitMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : 2000;
     await new Promise((r) => setTimeout(r, waitMs));
-    res = await fetch(url, { headers: githubHeaders() });
+    res = await httpGet(url, githubHeaders());
   }
   if (!res.ok) {
-    console.error(`[search] GitHub search failed: HTTP ${res.status}`);
-    return [];
+    throw new Error(`GitHub search failed: HTTP ${res.status}`);
   }
-  const data = (await res.json()) as { items: GitHubSearchItem[] };
-  return data.items;
+  const parsed = GitHubSearchResponse.safeParse(await res.json());
+  if (!parsed.success) {
+    throw new Error("GitHub search returned an unexpected response shape");
+  }
+  return parsed.data.items;
 }
 
-function toCandidate(item: GitHubSearchItem): RawCandidate {
+function toCandidate(item: GitHubSearchItemT): RawCandidate {
   return {
     source: "github",
     id: item.full_name,
@@ -185,11 +182,11 @@ function toCandidate(item: GitHubSearchItem): RawCandidate {
   };
 }
 
-export async function searchGitHub(
+export async function searchGitHubResult(
   description: string,
   overrideKeywords?: string[],
   limit = 15,
-): Promise<RawCandidate[]> {
+): Promise<Result<RawCandidate[]>> {
   // Filter before the emptiness check, not after: an all-stop-word
   // description yields no keywords at all, but an agent-supplied array like
   // ["", " ", "a"] is non-empty while still joining to the junk query
@@ -198,7 +195,7 @@ export async function searchGitHub(
   const keywordList = meaningfulKeywords(
     overrideKeywords ?? extractKeywords(description, 4),
   );
-  if (keywordList.length === 0) return [];
+  if (keywordList.length === 0) return ok("github", []);
   const keywords = keywordList.join(" ");
   // Default (best-match) sort, not sort=stars: sorting by stars biases
   // toward giant awesome-lists/mega-repos that merely mention the keywords
@@ -239,41 +236,43 @@ export async function searchGitHub(
       seen.add(item.full_name);
       merged.push(toCandidate(item));
     }
-    return merged;
-  } catch (err) {
-    console.error(`[search] GitHub search error: ${(err as Error).message}`);
-    return [];
+    return ok("github", merged);
+  } catch (e) {
+    return err("github", (e as Error).message);
   }
 }
 
-export async function searchNpm(
+/** Back-compat wrapper: returns candidates or [] on failure. */
+export async function searchGitHub(
+  description: string,
+  overrideKeywords?: string[],
+  limit = 15,
+): Promise<RawCandidate[]> {
+  const r = await searchGitHubResult(description, overrideKeywords, limit);
+  return r.ok ? r.value : [];
+}
+
+export async function searchNpmResult(
   description: string,
   overrideKeywords?: string[],
   limit = 10,
-): Promise<RawCandidate[]> {
+): Promise<Result<RawCandidate[]>> {
   const keywords = keywordsAsQuery(overrideKeywords ?? extractKeywords(description, 4));
   // npm rejects text outside 2-64 chars (ERR_TEXT_LENGTH); skip the round
   // trip rather than spend it on a guaranteed 400. keywordsAsQuery returns
   // "" when nothing usable survives its filtering.
-  if (keywords.length === 0) return [];
+  if (keywords.length === 0) return ok("npm", []);
   const url = `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(keywords)}&size=${limit}`;
   try {
-    const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+    const res = await httpGet(url, { "User-Agent": USER_AGENT });
     if (!res.ok) {
-      console.error(`[search] npm search failed: HTTP ${res.status}`);
-      return [];
+      return err("npm", `npm search failed: HTTP ${res.status}`);
     }
-    const data = (await res.json()) as {
-      objects: Array<{
-        package: {
-          name: string;
-          description: string | null;
-          links: { npm: string; repository?: string };
-          date: string;
-        };
-      }>;
-    };
-    return data.objects.map((obj) => ({
+    const parsed = NpmSearchResponse.safeParse(await res.json());
+    if (!parsed.success) {
+      return err("npm", "npm search returned an unexpected response shape");
+    }
+    const candidates = parsed.data.objects.map((obj) => ({
       source: "npm" as const,
       id: obj.package.name,
       name: obj.package.name,
@@ -281,40 +280,47 @@ export async function searchNpm(
       description: obj.package.description ?? "",
       pushedAt: obj.package.date,
     }));
-  } catch (err) {
-    console.error(`[search] npm search error: ${(err as Error).message}`);
-    return [];
+    return ok("npm", candidates);
+  } catch (e) {
+    return err("npm", (e as Error).message);
   }
 }
 
-export async function searchPyPI(
+/** Back-compat wrapper: returns candidates or [] on failure. */
+export async function searchNpm(
   description: string,
   overrideKeywords?: string[],
   limit = 10,
 ): Promise<RawCandidate[]> {
-  // PyPI has no official JSON search API (the old one was retired); we use
-  // the public search-index mirror at pypi.org's simple search HTML is
-  // unreliable to parse, so we fall back to a best-effort approach: query
-  // the "similar packages" style endpoint isn't available either, so we
-  // just skip live search and rely on GitHub/npm for v0. If PYPI_XMLRPC_OK
-  // is unset, this returns [] rather than scraping HTML.
-  const keywords = overrideKeywords ?? extractKeywords(description, 4);
-  if (keywords.length === 0) return [];
-  // Best-effort: hit the pypi.org JSON API for the single most likely
-  // package name guesses (kebab-case joins of top keywords). This won't
-  // discover unrelated names but catches direct hits cheaply and safely.
+  const r = await searchNpmResult(description, overrideKeywords, limit);
+  return r.ok ? r.value : [];
+}
+
+export async function searchPyPIResult(
+  description: string,
+  overrideKeywords?: string[],
+  limit = 10,
+): Promise<Result<RawCandidate[]>> {
+  // PyPI has no official JSON search API (the old one was retired). The
+  // JSON-format search endpoint (pypi.org/search/?q=...&format=json) still
+  // returns text/html, confirmed 2026-07-22, so name-guessing against the
+  // per-project JSON endpoint is the only option: query the single most
+  // likely package name guesses (kebab-case joins of top keywords). This
+  // won't discover unrelated names but catches direct hits cheaply and
+  // safely.
+  const keywords = meaningfulKeywords(overrideKeywords ?? extractKeywords(description, 4));
+  if (keywords.length === 0) return ok("pypi", []);
   const guesses = [keywords.join("-"), keywords.slice(0, 2).join("-")];
   const results: RawCandidate[] = [];
   for (const guess of new Set(guesses)) {
     try {
-      const res = await fetch(`https://pypi.org/pypi/${guess}/json`, {
-        headers: { "User-Agent": USER_AGENT },
+      const res = await httpGet(`https://pypi.org/pypi/${guess}/json`, {
+        "User-Agent": USER_AGENT,
       });
       if (!res.ok) continue;
-      const data = (await res.json()) as {
-        info: { name: string; summary: string | null; project_url: string };
-        urls: Array<{ upload_time_iso_8601?: string }>;
-      };
+      const parsed = PyPIProjectResponse.safeParse(await res.json());
+      if (!parsed.success) continue;
+      const data = parsed.data;
       results.push({
         source: "pypi",
         id: data.info.name,
@@ -327,7 +333,17 @@ export async function searchPyPI(
       // ignore — guess-based lookup is best-effort
     }
   }
-  return results.slice(0, limit);
+  return ok("pypi", results.slice(0, limit));
+}
+
+/** Back-compat wrapper: returns candidates or [] on failure. */
+export async function searchPyPI(
+  description: string,
+  overrideKeywords?: string[],
+  limit = 10,
+): Promise<RawCandidate[]> {
+  const r = await searchPyPIResult(description, overrideKeywords, limit);
+  return r.ok ? r.value : [];
 }
 
 /** `keywords`, when provided, comes from the calling agent's own read of the
@@ -337,14 +353,25 @@ export async function searchPyPI(
  * produces far better search terms than this file's mechanical stop-word
  * extractor ever can; extractKeywords remains only as the fallback when no
  * agent-provided keywords are given. */
+/** Returns one Result per source, so the caller can report partial failure
+ * honestly ("npm search failed") instead of silently returning fewer
+ * candidates with no explanation. */
+export async function searchAllResults(
+  description: string,
+  keywords?: string[],
+): Promise<Result<RawCandidate[]>[]> {
+  return Promise.all([
+    searchGitHubResult(description, keywords),
+    searchNpmResult(description, keywords),
+    searchPyPIResult(description, keywords),
+  ]);
+}
+
+/** Flattened view for callers that do not care which source failed. */
 export async function searchAll(
   description: string,
   keywords?: string[],
 ): Promise<RawCandidate[]> {
-  const [gh, npm, pypi] = await Promise.all([
-    searchGitHub(description, keywords),
-    searchNpm(description, keywords),
-    searchPyPI(description, keywords),
-  ]);
-  return [...gh, ...npm, ...pypi];
+  const results = await searchAllResults(description, keywords);
+  return results.flatMap((r) => (r.ok ? r.value : []));
 }

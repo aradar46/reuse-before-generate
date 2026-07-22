@@ -1,25 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { searchGitHub, searchNpm } from "../../dist/search.js";
+import { setFetcher, resetFetcher } from "../../dist/http.js";
 
-// NOTE for Task 7: these tests stub `globalThis.fetch` because search.ts
-// still calls fetch directly. Once search.ts routes through src/http.ts,
-// this stub stops intercepting anything and the tests would pass VACUOUSLY
-// — 0 calls always, whether or not the guard fires. Convert to
-// setFetcher()/resetFetcher() as part of that rewiring.
-
-/** Stubs global fetch, counting calls, and always restores it. */
+/** Stubs the http.ts fetcher, counting calls, and always restores it. */
 async function countingFetch(fn: () => Promise<unknown>): Promise<number> {
-  const original = globalThis.fetch;
   let calls = 0;
-  globalThis.fetch = async () => {
+  setFetcher(async () => {
     calls += 1;
     return new Response(JSON.stringify({ items: [], objects: [] }), { status: 200 });
-  };
+  });
   try {
     await fn();
   } finally {
-    globalThis.fetch = original;
+    resetFetcher();
   }
   return calls;
 }
