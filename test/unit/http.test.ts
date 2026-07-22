@@ -41,13 +41,13 @@ test("httpGet attaches an abort signal so requests cannot hang forever", async (
   assert.equal(hadSignal, true);
 });
 
-test("resetFetcher restores the default fetcher", async () => {
+test("setFetcher still works after resetFetcher", async () => {
   setFetcher(async () => new Response("stub", { status: 418 }));
   resetFetcher();
-  // After reset the stub must no longer be in effect. We assert indirectly:
-  // the module-level fetcher is not the stub, so calling it would hit the
-  // network. Rather than make a real request, re-inject and confirm the
-  // injection point still works.
+  // Deliberately does NOT assert the default fetcher is the real `fetch` —
+  // that would mean making a network call in a unit test. This checks only
+  // that the injection point survives a reset, which is what the other
+  // tests depend on via afterEach.
   let called = false;
   setFetcher(async () => {
     called = true;
