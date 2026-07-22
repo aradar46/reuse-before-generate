@@ -2,7 +2,7 @@
 // reuse-before-generate MCP server.
 //
 // One tool: check_before_building. Call it before scaffolding a new project
-// (or a significant new module). It searches GitHub/npm/PyPI and verifies
+// (or a significant new module). It searches GitHub/npm/Python and verifies
 // which hits are actually maintained, then hands the calling agent a
 // scoring prompt so IT performs the semantic re-rank using its own running
 // session — no separate billed LLM API call from this server. This keeps
@@ -28,7 +28,7 @@ server.registerTool(
   {
     description:
       "Run this BEFORE scaffolding a new project or a substantial new module. " +
-      "Searches GitHub, npm, and PyPI for existing projects that already do " +
+      "Searches GitHub, npm, and Python repos for existing projects that already do " +
       "what's being proposed and filters out abandoned/unmaintained results. " +
       "Returns verified-maintained candidates plus scoring instructions — " +
       "the calling agent (you) must then judge semantic relevance itself and " +
@@ -69,7 +69,7 @@ server.registerTool(
             {
               type: "text",
               text:
-                "No candidates found on GitHub, npm, or PyPI for this description. Nothing to reuse — clear to build." +
+                "No candidates found on GitHub, npm, or in Python repos for this description. Nothing to reuse — clear to build." +
                 suffix,
             },
           ],

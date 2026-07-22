@@ -1,14 +1,15 @@
-// Retrieval layer: pulls candidate matches from GitHub, npm, and PyPI for a
-// free-text project description. Kept deliberately dumb (lexical queries) —
-// semantic filtering happens later in rerank.ts.
+// Retrieval layer: pulls candidate matches for a free-text project
+// description from GitHub, npm, and a Python lane (GitHub scoped to
+// language:python). Kept deliberately dumb (lexical queries) — semantic
+// filtering happens later in rerank.ts.
 
 import { httpGet } from "./http.js";
-import { GitHubSearchResponse, NpmSearchResponse, PyPIProjectResponse, type GitHubSearchItemT } from "./schemas.js";
+import { GitHubSearchResponse, NpmSearchResponse, type GitHubSearchItemT } from "./schemas.js";
 import { ok, err, type Result } from "./result.js";
 
 export interface RawCandidate {
-  source: "github" | "npm" | "pypi";
-  id: string; // repo full_name, npm package name, or pypi package name
+  source: "github" | "npm" | "python";
+  id: string; // repo full_name or npm package name
   name: string;
   url: string;
   description: string;
@@ -296,98 +297,32 @@ export async function searchNpm(
   return r.ok ? r.value : [];
 }
 
-/** Python discovery via GitHub rather than PyPI.
+/** Python discovery, via GitHub's `language:python` filter.
  *
- * Since PyPI offers no real search (see searchPyPIResult), name-guessing
- * only finds packages named after their own keywords — it cannot find
- * `requests` from "http client". Nearly every Python tool worth surfacing
- * has a GitHub repo, and `language:python` shrinks the result pool enough
- * that small repos rank on their own merits instead of being buried by
- * unrelated high-star noise: a live check of "json viewer terminal
- * language:python" returned 12 total results, three of them under 5 stars.
+ * The language filter shrinks the result pool enough that small repos rank
+ * on their own merits instead of being buried by unrelated high-star noise
+ * — a live check of "json viewer terminal language:python" returned 12
+ * total results, three of them under 5 stars.
  *
- * Tagged source "github" because that is where the candidate actually
- * lives — the URL and star count are GitHub's. */
-export async function searchPythonRepos(
-  keywords: string[],
-  limit = 10,
-): Promise<RawCandidate[]> {
-  const usable = meaningfulKeywords(keywords);
-  if (usable.length === 0) return [];
-  try {
-    const items = await fetchGitHubSearch(`${usable.join(" ")} language:python`, limit);
-    return items.map(toCandidate);
-  } catch (e) {
-    // Best-effort supplement: a failure here should not sink the PyPI
-    // lane's own direct-hit guesses.
-    console.error(`[search] python lane failed: ${(e as Error).message}`);
-    return [];
-  }
-}
-
-export async function searchPyPIResult(
+ * Candidates keep source "python" rather than "github" so the eval can
+ * attribute wins to this lane specifically; the URL and star count are
+ * GitHub's either way. */
+export async function searchPythonResult(
   description: string,
   overrideKeywords?: string[],
   limit = 10,
 ): Promise<Result<RawCandidate[]>> {
-  // PyPI has no general search API — the XML-RPC one was retired, and the
-  // web search endpoint returns HTML regardless of what you ask for:
-  //
-  //   curl -so /dev/null -w '%{content_type}' \
-  //     'https://pypi.org/search/?q=json+viewer&format=json'
-  //   # => text/html; charset=utf-8   (same with Accept: application/json)
-  //
-  // Re-run that to check whether this is still true. Until it changes, the
-  // only option is guessing package names against the per-project JSON
-  // endpoint (kebab-case joins of the top keywords). That misses anything
-  // not named after its own keywords, but catches direct hits cheaply.
-  // Broader Python coverage comes from the GitHub language:python lane.
   const keywords = meaningfulKeywords(overrideKeywords ?? extractKeywords(description, 4));
-  if (keywords.length === 0) return ok("pypi", []);
-  const guesses = [keywords.join("-"), keywords.slice(0, 2).join("-")];
-  const results: RawCandidate[] = [];
-  for (const guess of new Set(guesses)) {
-    try {
-      const res = await httpGet(`https://pypi.org/pypi/${guess}/json`, {
-        "User-Agent": USER_AGENT,
-      });
-      if (!res.ok) continue;
-      const parsed = PyPIProjectResponse.safeParse(await res.json());
-      if (!parsed.success) continue;
-      const data = parsed.data;
-      results.push({
-        source: "pypi",
-        id: data.info.name,
-        name: data.info.name,
-        url: data.info.project_url,
-        description: data.info.summary ?? "",
-        pushedAt: data.urls[0]?.upload_time_iso_8601,
-      });
-    } catch {
-      // ignore — guess-based lookup is best-effort
-    }
+  if (keywords.length === 0) return ok("python", []);
+  try {
+    const items = await fetchGitHubSearch(`${keywords.join(" ")} language:python`, limit);
+    return ok(
+      "python",
+      items.map((item) => ({ ...toCandidate(item), source: "python" as const })),
+    );
+  } catch (e) {
+    return err("python", (e as Error).message);
   }
-
-  // Merge the GitHub-side Python lane. Deduped by id so a project found
-  // both ways (PyPI name guess and GitHub repo) is not listed twice.
-  const seen = new Set(results.map((r) => r.id.toLowerCase()));
-  for (const repo of await searchPythonRepos(keywords)) {
-    if (seen.has(repo.id.toLowerCase())) continue;
-    seen.add(repo.id.toLowerCase());
-    results.push(repo);
-  }
-
-  return ok("pypi", results.slice(0, limit));
-}
-
-/** Back-compat wrapper: returns candidates or [] on failure. */
-export async function searchPyPI(
-  description: string,
-  overrideKeywords?: string[],
-  limit = 10,
-): Promise<RawCandidate[]> {
-  const r = await searchPyPIResult(description, overrideKeywords, limit);
-  return r.ok ? r.value : [];
 }
 
 /** `keywords`, when provided, comes from the calling agent's own read of the
@@ -407,7 +342,7 @@ export async function searchAllResults(
   return Promise.all([
     searchGitHubResult(description, keywords),
     searchNpmResult(description, keywords),
-    searchPyPIResult(description, keywords),
+    searchPythonResult(description, keywords),
   ]);
 }
 

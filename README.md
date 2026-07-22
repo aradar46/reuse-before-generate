@@ -1,7 +1,7 @@
 # reuse-before-generate
 
 An MCP tool for coding agents: **before scaffolding a new project or module,
-check whether it already exists.** Searches GitHub/npm/PyPI, filters to
+check whether it already exists.** Searches GitHub, npm, and Python repos, filters to
 actually-maintained candidates, and hands the calling agent a scoring prompt
 so it re-ranks by real semantic similarity (not keyword overlap) itself —
 presenting at most 3 alternatives with a concrete "extend this instead of
@@ -75,7 +75,8 @@ problem. That distinction is not cosmetic — see
 1. **Search** (`src/search.ts`) — pulls candidates from GitHub repo search
    (two lanes: a primary relevance query plus a `stars:0..3` lane that
    catches tiny/new repos the primary query structurally buries), npm
-   registry search, and best-effort PyPI name-guessing.
+   registry search, and a Python lane (GitHub scoped to
+   `language:python`).
 2. **Verify** (`src/verify.ts`) — filters out archived repos and anything
    with no activity in the last year. Deliberately does **not** filter on
    star count: a brand-new 0-star repo doing exactly the job is precisely
@@ -118,7 +119,7 @@ npm run eval -- --case json-viewer                    # iterate on one case
 per-source counts, any source failures, and the ranked candidates without
 needing an agent session.
 
-`npm run eval` hits live GitHub/npm/PyPI and is deliberately **not** part of
+`npm run eval` hits live GitHub and npm, and is deliberately **not** part of
 `npm test`: upstream ranking drifts for reasons unrelated to this code, and
 a flaky merge gate gets ignored, then disabled, then deleted. It runs
 weekly in CI instead.
@@ -128,8 +129,7 @@ Node 22.6+, which strips TypeScript from `.test.ts` files natively.
 
 ## Known gaps
 
-PyPI coverage is name-guessing rather than real search (no such API
-exists), the maintained-vs-abandoned check is recency-only, GitHub's index
+The maintained-vs-abandoned check is recency-only, GitHub's index
 under-serves very small repos, and keyword choice remains fragile in ways a
 single wrong synonym can expose.
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GitHubSearchResponse, NpmSearchResponse, PyPIProjectResponse } from "../../dist/schemas.js";
+import { GitHubSearchResponse, NpmSearchResponse } from "../../dist/schemas.js";
 
 test("GitHubSearchResponse accepts a well-formed payload", () => {
   const parsed = GitHubSearchResponse.safeParse({
@@ -80,10 +80,3 @@ test("NpmSearchResponse rejects a non-array objects field", () => {
   assert.equal(parsed.success, false);
 });
 
-test("PyPIProjectResponse accepts a project with no upload urls", () => {
-  const parsed = PyPIProjectResponse.safeParse({
-    info: { name: "black", summary: "code formatter", project_url: "https://pypi.org/project/black/" },
-    urls: [],
-  });
-  assert.equal(parsed.success, true);
-});

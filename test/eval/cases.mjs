@@ -134,9 +134,8 @@ export const cases = [
   },
   {
     id: "python-dominant",
-    // Python-dominant target. PyPI name-guessing alone is unlikely to reach
-    // it, so this case measures whether the GitHub language:python lane
-    // (Task 16) actually earns its request.
+    // Python-dominant target: measures whether the language:python lane
+    // earns its request. It is the case that lane exists for.
     description:
       "A Python library for making HTTP requests with a simple API, handling sessions, redirects and JSON decoding.",
     expectAnyOf: ["requests", "httpx", "aiohttp", "urllib3"],

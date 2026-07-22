@@ -11,9 +11,9 @@ scores; `npm run eval -- --diff` compares against them.
 
 ## Known gaps
 
-- **PyPI search** is a best-effort name-guess, not real search. There is no
-  general PyPI search API post-XML-RPC-retirement, and the web endpoint
-  returns HTML regardless of what you ask for:
+- **Python discovery goes through GitHub, not PyPI.** PyPI has no general
+  search API — the XML-RPC one was retired, and the web endpoint returns
+  HTML regardless of what you ask for:
 
   ```
   curl -so /dev/null -w '%{content_type}' \
@@ -21,8 +21,18 @@ scores; `npm run eval -- --diff` compares against them.
   # => text/html; charset=utf-8   (same with Accept: application/json)
   ```
 
-  Re-run that to check whether it is still true. Weakest leg of the three
-  sources.
+  An earlier version worked around this by guessing package names
+  (kebab-case joins of the keywords) against the per-project JSON endpoint.
+  **That lane was removed after measurement: it produced zero winning
+  candidates across 21 variant runs.** It could only find packages already
+  named after their own keywords, so it could never find `requests` from
+  "http client" — the exact query Python users actually make.
+
+  The replacement is a GitHub query scoped to `language:python`, which took
+  that case from MISS to rank 1. The language filter also shrinks the
+  result pool enough that small repos rank on merit rather than being
+  buried by high-star noise. Candidates from this lane are tagged `python`
+  so the eval can still attribute wins to it specifically.
 
 - **"Maintained" heuristic** is recency-only (pushed within the last year),
   not the fuller signal set (issue response time, contributor count,
@@ -146,11 +156,12 @@ The eval records which lane produced each winning candidate. Across 21
 variant runs:
 
 - **The PyPI name-guessing lane produced zero winners.** Every hit came via
-  `github` or `npm`. Python coverage comes entirely from the
-  `language:python` GitHub lane, which took `python-dominant` (find
-  `requests` from "http client") from MISS to rank 1. Name-guessing is
-  retained only because it is nearly free — two direct-hit lookups — but it
-  is not carrying Python discovery.
+  `github` or `npm`. That measurement is why the lane was deleted rather
+  than kept "because it is nearly free": a source that never contributes is
+  not free, it is two requests per call plus a schema, a code path, and a
+  test to maintain. Python coverage now comes entirely from the
+  `language:python` lane, which took `python-dominant` (find `requests`
+  from "http client") from MISS to rank 1.
 - **The low-star lane earns its request.** `actions-debugger` and
   `low-star-niche` both resolve through it.
 

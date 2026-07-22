@@ -31,7 +31,7 @@ const npmBody = {
   ],
 };
 
-function routeFetcher(handlers: { github?: () => Response; npm?: () => Response; pypi?: () => Response }) {
+function routeFetcher(handlers: { github?: () => Response; npm?: () => Response; python?: () => Response }) {
   return async (url: string) => {
     if (url.includes("api.github.com")) {
       return handlers.github?.() ?? new Response(JSON.stringify({ items: [] }), { status: 200 });
@@ -39,7 +39,7 @@ function routeFetcher(handlers: { github?: () => Response; npm?: () => Response;
     if (url.includes("registry.npmjs.org")) {
       return handlers.npm?.() ?? new Response(JSON.stringify({ objects: [] }), { status: 200 });
     }
-    return handlers.pypi?.() ?? new Response("{}", { status: 404 });
+    return handlers.python?.() ?? new Response(JSON.stringify({ items: [] }), { status: 200 });
   };
 }
 

@@ -1,4 +1,4 @@
-// Scored recall eval. Hits live GitHub/npm/PyPI — deliberately NOT part of
+// Scored recall eval. Hits live GitHub and npm — deliberately NOT part of
 // `npm test`, because upstream ranking drifts independently of this
 // codebase and a flaky signal that blocks merges gets ignored, then
 // disabled, then deleted.

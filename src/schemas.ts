@@ -52,16 +52,4 @@ export const NpmSearchResponse = z.object({
   ),
 });
 
-export const PyPIProjectResponse = z.object({
-  info: z.object({
-    name: z.string(),
-    summary: z.string().nullable(),
-    project_url: z.string(),
-  }),
-  // Required, not optional: a project with no releases returns `urls: []`
-  // rather than omitting the key, so an empty array is the zero case and
-  // search.ts's `urls[0]?.` handles it.
-  urls: z.array(z.object({ upload_time_iso_8601: z.string().optional() })),
-});
-
 export type GitHubSearchItemT = z.infer<typeof GitHubSearchItem>;

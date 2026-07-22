@@ -30,7 +30,7 @@ type ActivityAge =
   | { kind: "unparseable"; raw: string };
 
 // Every source sends a full ISO 8601 timestamp (GitHub `pushed_at`, npm
-// `date`, PyPI `upload_time_iso_8601`), so anything that is not at least
+// `date`), so anything that is not at least
 // YYYY-MM-DD is bad data, not an unusual date format. Requiring that shape
 // matters because `new Date()` is far more permissive than it looks: "0"
 // parses as the year 2000 and "99" as 1998, both perfectly valid Dates. Left
