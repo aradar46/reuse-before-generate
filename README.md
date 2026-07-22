@@ -1,44 +1,31 @@
 # reuse-before-generate
 
-**Stop your AI agent from rebuilding something that already exists.**
+**Your AI keeps building things that already exist. This stops it.**
 
-Ask an agent for "a script that finds whatever is hogging port 3000 and
-kills it" and it will happily write one from scratch — even though several
-polished tools already do exactly that, and one has 7,000 stars.
+Right now:
 
-This is an MCP server. It hands your agent one new ability —
-`check_before_building` — which searches GitHub, npm, and Python repos,
-throws away everything abandoned, and gives your agent the survivors to
-judge.
-
-No API key. No account. One line to install.
-
-```bash
-claude mcp add reuse-before-generate -- npx -y reuse-before-generate
-```
-
----
-
-## What you get
-
-You: *"write me something that finds what's using a port and kills it"*
-
-Instead of writing it, your agent answers:
-
-> Before I build this, I checked. 45 results, 23 still actively maintained.
-> Three already do this:
+> **You:** write me something that frees up port 3000 when it's stuck
 >
-> 1. **fkill** (6,997★) — "Fabulously kill processes. Cross-platform."
->    Interactive picker, one command. Closest to what you asked for.
-> 2. **port-killer** (4,964★, updated last month) — heavier, also handles
->    Kubernetes port-forwards if you ever need that.
-> 3. **port-kill** (2,034★) — frees ports *and* clears dev caches.
->
-> Want me to just install `fkill`, or build it anyway?
+> **Your AI:** *writes 40 lines of code*
 
-You still decide. It just makes sure you decide *knowing*.
+With this installed:
+
+> **You:** write me something that frees up port 3000 when it's stuck
+>
+> **Your AI:** Hold on — I checked first, and three tools already do this:
+>
+> 1. **fkill** (6,997★) — "Fabulously kill processes." One command, pick
+>    from a list. Closest to what you want.
+> 2. **port-killer** (4,964★) — bigger, does more.
+> 3. **port-kill** (2,034★) — also clears caches.
+>
+> Want me to install `fkill` instead, or build it anyway?
+
+You still choose. You just choose knowing.
 
 ## Install
+
+No API key. No account. Nothing to configure.
 
 ```bash
 claude mcp add reuse-before-generate -- npx -y reuse-before-generate
