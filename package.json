@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "check": "npm run build && node dist/cli.js",
     "dev": "tsc -p tsconfig.json --watch",
     "test": "npm run build && REUSE_BEFORE_GENERATE_STATE_DIR=.test-state node --test test/unit/*.test.ts"
   },
