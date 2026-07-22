@@ -76,17 +76,42 @@ export function extractKeywords(description: string, max = 4): string[] {
   return uniq.slice(0, max);
 }
 
-/** npm's search API rejects `text` over 64 chars (ERR_TEXT_LENGTH); GitHub
- * has no such hard cap but a shorter query is also a tighter query there.
- * Joins keywords space-separated, dropping trailing words that would push
- * past the limit rather than truncating mid-word. The one exception is a
- * first keyword that alone exceeds the cap: see the fallback below. */
+/** npm's documented floor for the `text` parameter. */
+const MIN_QUERY_CHARS = 2;
+
+/** Truncates to at most `maxChars` UTF-16 units without splitting a
+ * surrogate pair. A raw `.slice()` can cut an astral character (emoji, most
+ * CJK extension blocks) in half, leaving a lone surrogate that makes
+ * `encodeURIComponent` throw "URI malformed" — an uncaught crash rather than
+ * the handled 400 it replaced. Dropping the partial character costs one
+ * glyph off an already-degraded query and keeps the string encodable. */
+function truncateToChars(input: string, maxChars: number): string {
+  if (input.length <= maxChars) return input;
+  const cut = input.slice(0, maxChars);
+  const last = cut.charCodeAt(cut.length - 1);
+  // A high surrogate (D800-DBFF) at the end means its pair was cut off.
+  const endsMidPair = last >= 0xd800 && last <= 0xdbff;
+  return endsMidPair ? cut.slice(0, -1) : cut;
+}
+
+/** npm's search API rejects `text` outside 2-64 chars (ERR_TEXT_LENGTH);
+ * GitHub has no such hard cap but a shorter query is also a tighter query
+ * there. Joins keywords space-separated, dropping trailing words that would
+ * push past the limit rather than truncating mid-word. The one exception is
+ * a first keyword that alone exceeds the cap: see the fallback below.
+ *
+ * Returns "" when nothing usable survives. Callers must treat that as "skip
+ * the request" rather than sending it — see the guard in searchNpm. */
 export function keywordsAsQuery(keywords: string[], maxChars = 64): string {
-  // Blank/whitespace-only entries are dropped before joining. Left in, they
-  // contribute nothing but still consume separator characters, producing
-  // queries like "    json" or a whitespace-only string — the latter being
-  // exactly the ERR_TEXT_LENGTH rejection this function exists to avoid.
-  const usable = keywords.map((kw) => kw.trim()).filter((kw) => kw.length > 0);
+  // Drop blanks and single characters up front. Blanks left in contribute
+  // nothing but still consume separator characters, producing queries like
+  // "    json"; single chars are below npm's floor of 2, so a query that
+  // reduces to one is rejected just as an empty one is. The agent-supplied
+  // `keywords` array is only schema-checked for length (3-6 entries), not
+  // for per-entry content, so both are reachable from a real tool call.
+  const usable = keywords
+    .map((kw) => kw.trim())
+    .filter((kw) => kw.length >= MIN_QUERY_CHARS);
 
   let out = "";
   for (const kw of usable) {
@@ -95,11 +120,10 @@ export function keywordsAsQuery(keywords: string[], maxChars = 64): string {
     out = next;
   }
   // A single keyword longer than the cap would otherwise leave `out` empty,
-  // which npm rejects outright (ERR_TEXT_LENGTH: text must be 2-64 chars).
-  // A truncated query is a worse query but still a valid one; an empty query
-  // is a guaranteed 400.
+  // which npm rejects outright. A truncated query is a worse query but still
+  // a valid one; an empty query is a guaranteed 400.
   if (out === "" && usable.length > 0) {
-    return usable[0].slice(0, maxChars);
+    return truncateToChars(usable[0], maxChars);
   }
   return out;
 }

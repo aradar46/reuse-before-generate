@@ -38,6 +38,29 @@ test("keywordsAsQuery skips empty entries rather than emitting an empty query", 
   assert.equal(keywordsAsQuery(["   ", "json"]), "json");
 });
 
+test("keywordsAsQuery output is always URL-encodable", () => {
+  // Regression: truncating with a raw .slice() can cut an astral character
+  // (emoji, CJK extensions) mid-surrogate-pair, leaving a lone surrogate
+  // that makes encodeURIComponent throw "URI malformed". That turned a
+  // handled 400 into an uncaught crash. The 'a' prefix forces an odd offset
+  // so the 64-char cut lands inside a pair.
+  const q = keywordsAsQuery(["a" + "\u{1F389}".repeat(40)]);
+  assert.doesNotThrow(() => encodeURIComponent(q));
+  assert.ok(q.length <= 64);
+
+  const odd = keywordsAsQuery(["\u{1F389}".repeat(40)], 63);
+  assert.doesNotThrow(() => encodeURIComponent(odd));
+});
+
+test("keywordsAsQuery drops keywords below npm's 2-char floor", () => {
+  // npm rejects `text` outside 2-64 chars, so a query that reduces to a
+  // single character is rejected exactly like an empty one. The tool schema
+  // constrains the keywords array's length but not each entry's content, so
+  // a 1-char keyword is reachable from a real call.
+  assert.equal(keywordsAsQuery(["a"]), "");
+  assert.equal(keywordsAsQuery(["a", "json"]), "json");
+});
+
 test("keywordsAsQuery returns empty string when every keyword is blank", () => {
   // Nothing usable to send. Callers must treat an empty query as "skip the
   // request" — Task 5 adds that guard in searchNpm.
