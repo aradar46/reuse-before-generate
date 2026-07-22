@@ -22,6 +22,9 @@ test("a repo pushed today is maintained", async () => {
 test("a repo pushed 364 days ago is maintained", async () => {
   const v = await verifyCandidate({ ...base, pushedAt: daysAgo(364) });
   assert.equal(v.maintained, true);
+  // The day count itself is surfaced to the calling agent as a scoring
+  // input, so assert the number, not just the boolean.
+  assert.equal(v.daysSinceLastActivity, 364);
 });
 
 test("a repo pushed exactly 365 days ago is maintained (boundary is inclusive)", async () => {
