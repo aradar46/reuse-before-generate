@@ -17,7 +17,7 @@ export interface RawCandidate {
   archived?: boolean;
 }
 
-const USER_AGENT = "reuse-before-generate-mcp/0.1";
+const USER_AGENT = "reuse-before-generate-mcp/0.2";
 const GITHUB_API = "https://api.github.com";
 
 function githubHeaders(): Record<string, string> {

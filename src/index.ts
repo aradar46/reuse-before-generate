@@ -20,7 +20,7 @@ import { track } from "./telemetry.js";
 
 const server = new McpServer({
   name: "reuse-before-generate",
-  version: "0.1.0",
+  version: "0.2.0",
 });
 
 server.registerTool(

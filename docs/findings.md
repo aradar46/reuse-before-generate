@@ -101,15 +101,72 @@ found nothing" cannot deflate the score.
 ### A trap worth knowing
 
 GitHub's search endpoint allows **10 requests/minute unauthenticated**, 30
-with a token. Each keyword variant issues 2 GitHub requests. Run the eval
-too fast and GitHub returns 403 — which scores as a recall MISS,
-indistinguishable from a genuine failure to find the target. An early run
-of this suite produced recall@10 = 0.727 with most cases showing
-`github:HTTP 403`; those numbers were meaningless.
+with a token. Each keyword variant issues 3 GitHub requests (primary lane,
+low-star lane, `language:python` lane). Run the eval too fast and GitHub
+returns 403 — which scores as a recall MISS, indistinguishable from a
+genuine failure to find the target.
 
-The runner now spaces variants 12s apart unauthenticated (4.5s with a
-token) and **refuses to write a baseline** when any variant hit a source
-failure. Set `GITHUB_TOKEN` for faster, more reliable runs.
+This is not hypothetical. Three separate runs of this suite reported
+recall@10 of 0.727 and 0.818 with `github:HTTP 403` scattered through
+them. The real figure, measured authenticated with zero source failures,
+is **1.000**. Every one of those "misses" was throttling.
+
+Two guards now exist:
+
+1. The delay is **derived** from the lane count and rate limit, not
+   hardcoded. Adding the `language:python` lane took requests-per-variant
+   from 2 to 3, which silently invalidated a hand-tuned 12s delay — the
+   exact drift that produced the last set of phantom misses.
+2. The runner **refuses to write a baseline** when any variant hit a
+   source failure. A contaminated baseline is worse than none, because it
+   looks authoritative and poisons every later comparison.
+
+Set `GITHUB_TOKEN` (or `GITHUB_TOKEN=$(gh auth token)`) — it cuts a full
+run from ~8 minutes to ~2.5 and avoids throttling entirely.
+
+## Baseline (2026-07-22)
+
+Authenticated run, 12 cases, zero source failures.
+
+| metric | value |
+|---|---|
+| recall@5 | 0.909 |
+| recall@10 | **1.000** |
+| MRR | 0.750 |
+| false positives on the true-negative case | 0 |
+
+Every case with a real target found it within the top 10; 10 of 11 within
+the top 5. The one outside is `actions-debugger` at rank 6 — the case
+documented above as only partially solved, now reachable via the low-star
+lane.
+
+### What the source attribution showed
+
+The eval records which lane produced each winning candidate. Across 21
+variant runs:
+
+- **The PyPI name-guessing lane produced zero winners.** Every hit came via
+  `github` or `npm`. Python coverage comes entirely from the
+  `language:python` GitHub lane, which took `python-dominant` (find
+  `requests` from "http client") from MISS to rank 1. Name-guessing is
+  retained only because it is nearly free — two direct-hit lookups — but it
+  is not carrying Python discovery.
+- **The low-star lane earns its request.** `actions-debugger` and
+  `low-star-niche` both resolve through it.
+
+### Both remaining MISSes are the keyword-framing failure, not retrieval
+
+`json-viewer` finds its target at rank 1 with `json,viewer,terminal` and
+MISSes entirely with `json,pretty-print,colorize`. `low-star-niche` finds
+it with `port,kill,process` and MISSes with `tcp,listening,terminal`. In
+both cases the failing variant is the *user's* framing of the problem and
+the succeeding one is the *maintainer's* framing of the tool — exactly the
+pattern described above. This is now a measured 50% variant hit-rate on
+those two cases rather than an anecdote.
+
+The practical implication: recall@10 of 1.0 describes what is reachable
+when the calling agent picks good keywords. It is not what a user gets by
+accident. The guidance text in the `keywords` field is doing real work.
 
 ## Experiments
 
@@ -117,6 +174,10 @@ Query-strategy changes measured against the committed baseline. A null
 result is recorded, not discarded — knowing a plausible idea does not help
 is worth as much as knowing one does.
 
+Note that recall@10 is already 1.000, so there is no headroom there; MRR
+(0.750) is the metric with room to move, and it rewards ranking the right
+answer higher rather than merely finding it.
+
 | # | Change | recall@10 | MRR | Kept? |
 |---|--------|-----------|-----|-------|
-| — | baseline | see `test/eval/baseline.json` | | — |
+| — | baseline (`test/eval/baseline.json`) | 1.000 | 0.750 | — |
