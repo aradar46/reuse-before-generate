@@ -45,6 +45,15 @@ You still decide. It just makes sure you decide *knowing*.
 claude mcp add reuse-before-generate -- npx -y reuse-before-generate
 ```
 
+Then start a **new** session and ask your agent something like *"check
+whether a tool that generates changelogs from conventional commits already
+exists."*
+
+> Don't run `npx -y reuse-before-generate` on its own. It will print
+> `MCP server running on stdio` and then sit there looking frozen — that's
+> correct. It's waiting for an agent to talk to it, and there isn't one.
+> Your agent runs that command for you. (Ctrl+C to get out.)
+
 Or add it to `.mcp.json` yourself — this works in Cursor, Claude Desktop,
 and any other MCP client:
 
