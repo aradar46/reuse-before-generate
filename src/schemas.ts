@@ -8,10 +8,9 @@
 //
 // A schema STRICTER than reality is the dangerous direction: it rejects a
 // valid response as "unexpected shape" and silently drops that entire
-// source. The optionality below was therefore checked against live data
-// (2026-07-22) rather than inferred from the old hand-written interfaces in
-// search.ts — those were the unverified fiction this file replaces, so they
-// are not evidence of anything.
+// source. Every optionality decision below was therefore checked against
+// live responses (2026-07-22), not inferred from the old hand-written
+// interfaces this file replaces.
 
 import { z } from "zod";
 
@@ -59,6 +58,9 @@ export const PyPIProjectResponse = z.object({
     summary: z.string().nullable(),
     project_url: z.string(),
   }),
+  // Required, not optional: a project with no releases returns `urls: []`
+  // rather than omitting the key, so an empty array is the zero case and
+  // search.ts's `urls[0]?.` handles it.
   urls: z.array(z.object({ upload_time_iso_8601: z.string().optional() })),
 });
 
