@@ -160,11 +160,11 @@ async function fetchGitHubSearch(
     res = await httpGet(url, githubHeaders());
   }
   if (!res.ok) {
-    throw new Error(`GitHub search failed: HTTP ${res.status}`);
+    throw new Error(`HTTP ${res.status}`);
   }
   const parsed = GitHubSearchResponse.safeParse(await res.json());
   if (!parsed.success) {
-    throw new Error("GitHub search returned an unexpected response shape");
+    throw new Error("unexpected response shape");
   }
   return parsed.data.items;
 }
@@ -266,11 +266,11 @@ export async function searchNpmResult(
   try {
     const res = await httpGet(url, { "User-Agent": USER_AGENT });
     if (!res.ok) {
-      return err("npm", `npm search failed: HTTP ${res.status}`);
+      return err("npm", `HTTP ${res.status}`);
     }
     const parsed = NpmSearchResponse.safeParse(await res.json());
     if (!parsed.success) {
-      return err("npm", "npm search returned an unexpected response shape");
+      return err("npm", "unexpected response shape");
     }
     const candidates = parsed.data.objects.map((obj) => ({
       source: "npm" as const,

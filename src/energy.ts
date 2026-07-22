@@ -13,7 +13,12 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const STATE_DIR = join(homedir(), ".reuse-before-generate");
+// Overridable so tests do not write to the developer's real state. Without
+// it, running the suite inflates the lifetime "rebuilds avoided" tally with
+// runs that avoided nothing — fabricating the tool's own headline metric,
+// which is precisely the credibility problem gating the display addresses.
+const STATE_DIR =
+  process.env.REUSE_BEFORE_GENERATE_STATE_DIR ?? join(homedir(), ".reuse-before-generate");
 const STATE_FILE = join(STATE_DIR, "energy-saved.json");
 
 // Rough estimate: a full "build it myself" agent session (~15-30 reasoning

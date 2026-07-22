@@ -8,6 +8,16 @@ export type Result<T> =
   | { ok: true; source: Source; value: T }
   | { ok: false; source: Source; reason: string };
 
+/** The failure branch, for callers that have already narrowed. */
+export type Failure = Extract<Result<unknown>, { ok: false }>;
+
+/** Narrowing filter for `results.filter(isFailure)`. Array.filter does not
+ * narrow a union on its own, and the alternative — casting the result — is
+ * a hand-restated shape that silently drifts when Result changes. */
+export function isFailure<T>(r: Result<T>): r is Failure {
+  return !r.ok;
+}
+
 export function ok<T>(source: Source, value: T): Result<T> {
   return { ok: true, source, value };
 }

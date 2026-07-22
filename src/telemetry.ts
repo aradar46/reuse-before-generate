@@ -18,7 +18,10 @@ import { appendFileSync, readFileSync, writeFileSync, mkdirSync, existsSync } fr
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const STATE_DIR = join(homedir(), ".reuse-before-generate");
+// Overridable so tests do not append to the developer's real event log or
+// claim their install id. See the same override in energy.ts.
+const STATE_DIR =
+  process.env.REUSE_BEFORE_GENERATE_STATE_DIR ?? join(homedir(), ".reuse-before-generate");
 const ID_FILE = join(STATE_DIR, "install-id");
 const LOG_FILE = join(STATE_DIR, "events.jsonl");
 

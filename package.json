@@ -11,7 +11,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "dev": "tsc -p tsconfig.json --watch",
-    "test": "npm run build && node --test test/unit/*.test.ts"
+    "test": "npm run build && REUSE_BEFORE_GENERATE_STATE_DIR=.test-state node --test test/unit/*.test.ts"
   },
   "files": [
     "dist"
