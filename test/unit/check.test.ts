@@ -27,7 +27,7 @@ test("all failed sources return an error with honest coverage", async () => {
 
   assert.equal(response.isError, true);
   assert.match(response.content[0].text, /Searched: none/);
-  assert.match(response.content[0].text, /Unavailable: github \(HTTP 403\), npm \(HTTP 503\)/);
+  assert.match(response.content[0].text, /Unavailable: github \(HTTP 403\); npm \(HTTP 503\)/);
   assert.deepEqual(events, [
     { type: "tool_invoked" },
     { type: "error", stage: "search" },

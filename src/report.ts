@@ -30,15 +30,13 @@ export function formatCoverage(
   const lines = [
     "Search coverage:",
     `Searched: ${successful.length > 0 ? successful.join(", ") : "none"}`,
-  ];
-  if (failures.length > 0) {
-    lines.push(
-      `Unavailable: ${failures
+    `Unavailable: ${failures.length > 0
+      ? failures
         .map((failure) =>
           `${failure.source} (${bareReason(failure.source, failure.reason)})`)
-        .join(", ")}`,
-    );
-  }
+        .join("; ")
+      : "none"}`,
+  ];
   return {
     text: lines.join("\n"),
     allFailed: successful.length === 0,

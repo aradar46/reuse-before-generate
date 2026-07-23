@@ -49,8 +49,10 @@ test("formatCoverage lists every successful source when all succeeded", () => {
   ]);
 
   assert.equal(coverage.allFailed, false);
-  assert.match(coverage.text, /Searched: github, npm/);
-  assert.doesNotMatch(coverage.text, /Unavailable:/);
+  assert.equal(
+    coverage.text,
+    "Search coverage:\nSearched: github, npm\nUnavailable: none",
+  );
 });
 
 test("formatCoverage reports partial failures with bare, non-repeated reasons", () => {
@@ -73,7 +75,10 @@ test("formatCoverage marks all failed only when no source succeeded", () => {
 
   assert.equal(coverage.allFailed, true);
   assert.match(coverage.text, /Searched: none/);
-  assert.match(coverage.text, /Unavailable: github \(HTTP 403\), web \(challenge response\)/);
+  assert.match(
+    coverage.text,
+    /Unavailable: github \(HTTP 403\); web \(challenge response\)/,
+  );
 });
 
 test("formatCoverage does not strip a source name that is only a word prefix", () => {
