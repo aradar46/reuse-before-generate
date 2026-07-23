@@ -187,7 +187,7 @@ test("classifyCandidate requires explicit commercial evidence", () => {
     evidence: [{
       source: "web",
       sourceId: "widget",
-      sourceUrl: "https://duckduckgo.com/?q=widget",
+      sourceUrl: "https://search.example/?q=widget",
       destinationUrl: "https://example.com/widget",
       title: "Widget",
       snippet: "A great business tool",
@@ -261,7 +261,7 @@ test("mergeCandidates joins transitive repository, package, and evidence aliases
       evidence: [{
         source: "web",
         sourceId: "widget-docs",
-        sourceUrl: "https://duckduckgo.com/?q=widget",
+        sourceUrl: "https://search.example/?q=widget",
         destinationUrl: "https://npmjs.com/package/widget/",
         title: "Widget docs",
         snippet: "web evidence",

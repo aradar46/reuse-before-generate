@@ -59,7 +59,7 @@ export async function runCheckBeforeBuilding(
       return {
         content: [{
           type: "text",
-          text: `All discovery sources were unavailable.\n\n${coverage.text}`,
+          text: `No required discovery source completed successfully.\n\n${coverage.text}`,
         }],
         isError: true,
       };

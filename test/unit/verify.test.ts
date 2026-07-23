@@ -130,7 +130,7 @@ test("prepareCandidates drops inactive open-source reuse candidates", async () =
 test("prepareCandidates retains competition with no activity without inventing maintenance", async () => {
   const prepared = await prepareCandidates([
     rawCandidate({
-      source: "producthunt",
+      source: "web",
       id: "hosted-widget",
       url: "https://example.com/widget",
       repositoryUrl: undefined,
@@ -138,9 +138,9 @@ test("prepareCandidates retains competition with no activity without inventing m
       kind: "commercial",
       description: "Hosted widget with subscription pricing",
       evidence: [{
-        source: "producthunt",
+        source: "web",
         sourceId: "hosted-widget",
-        sourceUrl: "https://producthunt.com/products/widget",
+        sourceUrl: "https://search.example/results/widget",
         destinationUrl: "https://example.com/widget",
         title: "Hosted widget",
         snippet: "Subscription pricing",

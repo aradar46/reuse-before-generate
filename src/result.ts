@@ -12,12 +12,12 @@ export type Source =
   | "rubygems"
   | "packagist"
   | "maven"
-  | "producthunt"
   | "web";
 
 export type Result<T> =
   | { ok: true; source: Source; value: T }
-  | { ok: false; source: Source; reason: string };
+  | { ok: false; source: Source; reason: string; attempted?: true }
+  | { ok: false; source: Source; reason: string; attempted: false };
 
 /** The failure branch, for callers that have already narrowed. */
 export type Failure = Extract<Result<unknown>, { ok: false }>;
@@ -39,6 +39,11 @@ export function ok<T>(source: Source, value: T): Result<T> {
 // T would silently widen to unknown. Keep the annotations.
 export function err<T>(source: Source, reason: string): Result<T> {
   return { ok: false, source, reason };
+}
+
+/** A source that was deliberately skipped because optional configuration is absent. */
+export function unavailable<T>(source: Source, reason: string): Result<T> {
+  return { ok: false, source, reason, attempted: false };
 }
 
 // No isOk() guard: `r.ok` narrows the union on its own, so a helper would be

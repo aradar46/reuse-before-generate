@@ -26,16 +26,18 @@ export function formatCoverage(
   const successful = [...new Set(
     results.flatMap((result) => result.ok ? [result.source] : []),
   )];
-  const failures = results.filter(isFailure);
+  const unsuccessful = results.filter(isFailure);
+  const unavailable = unsuccessful.filter((failure) => failure.attempted === false);
+  const failures = unsuccessful.filter((failure) => failure.attempted !== false);
+  const render = (failure: (typeof unsuccessful)[number]): string =>
+    `${failure.source} (${bareReason(failure.source, failure.reason)})`;
   const lines = [
     "Search coverage:",
     `Searched: ${successful.length > 0 ? successful.join(", ") : "none"}`,
-    `Unavailable: ${failures.length > 0
-      ? failures
-        .map((failure) =>
-          `${failure.source} (${bareReason(failure.source, failure.reason)})`)
-        .join("; ")
+    `Unavailable: ${unavailable.length > 0
+      ? unavailable.map(render).join("; ")
       : "none"}`,
+    `Failed: ${failures.length > 0 ? failures.map(render).join("; ") : "none"}`,
   ];
   return {
     text: lines.join("\n"),
@@ -51,7 +53,9 @@ export function formatCoverage(
  * so a reason of "npm search failed: HTTP 503" renders as the stuttering
  * "npm (npm search failed: HTTP 503)". Keep reasons bare ("HTTP 503"). */
 export function formatSourceFailures(results: Result<RawCandidate[]>[]): string {
-  const failures = results.filter(isFailure);
+  const failures = results
+    .filter(isFailure)
+    .filter((failure) => failure.attempted !== false);
   if (failures.length === 0) return "";
   const parts = failures.map(
     (failure) =>

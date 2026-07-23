@@ -29,7 +29,7 @@ test("formulationHitRate measures which planned formulations retrieved the winne
   };
   const winner = {
     evidence: [
-      evidence("producthunt", "screen recorder"),
+      evidence("web", "screen recorder"),
       evidence("web", "record polished product demos software"),
     ],
   };

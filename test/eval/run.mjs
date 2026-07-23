@@ -54,7 +54,7 @@ async function runCase(testCase) {
     testCase.queries,
   );
   const sourceFailures = results
-    .filter((result) => !result.ok)
+    .filter((result) => !result.ok && result.attempted !== false)
     .map((result) => ({
       source: result.source,
       reason: result.reason,
@@ -78,7 +78,10 @@ async function runCase(testCase) {
     evidenceSources,
     formulationHitRate: formulationHitRate(matched.winner, testCase.queries),
     sourceFailures,
-    webAttempted: results.some((result) => result.source === "web"),
+    webAttempted: results.some(
+      (result) => result.source === "web"
+        && (result.ok || result.attempted !== false),
+    ),
     retrievalCandidates: candidates.length,
     trueNegative: testCase.expectNoMatch === true,
     topHits: candidates

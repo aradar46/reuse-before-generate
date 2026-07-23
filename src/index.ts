@@ -3,7 +3,7 @@
 //
 // One tool: check_before_building. Call it before scaffolding a new project
 // (or a significant new module). It searches repository, registry, launch,
-// product-feed, and web sources; verifies reusable projects; and preserves
+// and optional web sources; verifies reusable projects; and preserves
 // market evidence separately. The calling agent performs the semantic
 // re-rank in its own session, with no separate billed LLM API call here.
 
@@ -14,7 +14,7 @@ import { runCheckBeforeBuilding } from "./check.js";
 
 const server = new McpServer({
   name: "reuse-before-generate",
-  version: "0.3.0",
+  version: "0.4.0",
 });
 
 server.registerTool(
@@ -22,7 +22,7 @@ server.registerTool(
   {
     description:
       "Run this BEFORE scaffolding a new project or a substantial new module. " +
-      "Searches GitHub, npm, GitLab, Show HN, Product Hunt, DuckDuckGo, " +
+      "Searches GitHub, npm, GitLab, Show HN, optional Tavily web search, " +
       "Python repositories when relevant, and one ecosystem registry for Rust, " +
       "Ruby, PHP, or JVM projects. Returns both reusable projects and products " +
       "the proposal would compete with, plus complete retrieval evidence. " +

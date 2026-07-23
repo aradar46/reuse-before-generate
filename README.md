@@ -55,11 +55,11 @@ But I had to build it to find out. Hopefully it will prevent me from doing it ag
 
 ## What it searches
 
-One bounded plan searches GitHub, npm, GitLab, Show HN, Product Hunt,
-DuckDuckGo, and, when the ecosystem is explicit, crates.io, RubyGems,
-Packagist, Maven Central, or a Python-specific repository lane. These
-sources are keyless. `GITHUB_TOKEN` is optional and only raises GitHub's
-search rate limit.
+One bounded plan searches GitHub, npm, GitLab, Show HN and, when the
+ecosystem is explicit, crates.io, RubyGems, Packagist, Maven Central, or a
+Python-specific repository lane. These sources are keyless. Optional Tavily
+search broadens discovery beyond developer indexes so both reusable projects
+and existing products can surface.
 
 The agent may supply three optional formulations: a category name, the
 outcome the tool should achieve, and alternative terminology. The planner
@@ -73,7 +73,7 @@ idea is unique or safe to build without further research.
 
 ## Install
 
-No API key. No account. Nothing to configure.
+No API key is required. Optional credentials improve coverage and throughput.
 
 ```bash
 claude mcp add reuse-before-generate -- npx -y reuse-before-generate
@@ -102,8 +102,9 @@ and any other MCP client:
 }
 ```
 
-**Optional but recommended:** add a GitHub token. Without one, GitHub limits
-you to 10 searches a minute; with one, 30.
+**Optional but recommended:** add a fine-grained GitHub token and a Tavily
+key. The GitHub token raises search throughput; Tavily adds web discovery.
+Keep secrets in your MCP client's environment configuration, not in prompts.
 
 ```json
 {
@@ -111,7 +112,10 @@ you to 10 searches a minute; with one, 30.
     "reuse-before-generate": {
       "command": "npx",
       "args": ["-y", "reuse-before-generate"],
-      "env": { "GITHUB_TOKEN": "ghp_your_token_here" }
+      "env": {
+        "GITHUB_TOKEN": "github_pat_your_token_here",
+        "TAVILY_API_KEY": "tvly_your_key_here"
+      }
     }
   }
 }
@@ -156,9 +160,11 @@ Details, including where it still fails, are in
 
 ## Settings
 
-The main optional setting is **`GITHUB_TOKEN`**. Without it
-GitHub allows 10 searches a minute, with it 30. Set it in the `env` block
-shown in [Install](#install).
+The optional settings are **`GITHUB_TOKEN`** and **`TAVILY_API_KEY`**.
+GitHub authentication improves repository-search throughput. Tavily adds one
+bounded web query per check; without it, coverage reports web as unavailable
+rather than failed. Set either or both in the `env` block shown in
+[Install](#install).
 
 It also keeps a local count of its own usage in
 `~/.reuse-before-generate/events.jsonl` — a random ID, a timestamp, and how
@@ -179,9 +185,8 @@ Honest list, because you'll hit these:
   doesn't fully solve it.
 - **"Maintained" just means "touched in the last year."** It doesn't check
   whether issues get answered or whether the project is actually healthy.
-- **Web search is experimental.** Challenge pages and markup changes can
-  make it unavailable. Coverage reports that explicitly; other sources
-  still return partial results.
+- **Web search is optional.** Without `TAVILY_API_KEY`, coverage reports it
+  as unavailable. Upstream errors are reported separately as failures.
 
 All measured and written up in [docs/findings.md](docs/findings.md).
 

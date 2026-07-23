@@ -51,7 +51,7 @@ test("formatCoverage lists every successful source when all succeeded", () => {
   assert.equal(coverage.allFailed, false);
   assert.equal(
     coverage.text,
-    "Search coverage:\nSearched: github, npm\nUnavailable: none",
+    "Search coverage:\nSearched: github, npm\nUnavailable: none\nFailed: none",
   );
 });
 
@@ -63,8 +63,34 @@ test("formatCoverage reports partial failures with bare, non-repeated reasons", 
 
   assert.equal(coverage.allFailed, false);
   assert.match(coverage.text, /Searched: github/);
-  assert.match(coverage.text, /Unavailable: npm \(HTTP 503\)/);
+  assert.match(coverage.text, /Failed: npm \(HTTP 503\)/);
   assert.doesNotMatch(coverage.text, /npm \(npm/);
+});
+
+test("formatCoverage separates optional sources that were not configured", () => {
+  const coverage = formatCoverage([
+    { ok: true, source: "github", value: [] },
+    {
+      ok: false,
+      source: "web",
+      reason: "TAVILY_API_KEY not configured",
+      attempted: false,
+    },
+  ]);
+
+  assert.equal(coverage.allFailed, false);
+  assert.equal(
+    coverage.text,
+    "Search coverage:\nSearched: github\nUnavailable: web (TAVILY_API_KEY not configured)\nFailed: none",
+  );
+  assert.equal(formatSourceFailures([
+    {
+      ok: false,
+      source: "web",
+      reason: "TAVILY_API_KEY not configured",
+      attempted: false,
+    },
+  ]), "");
 });
 
 test("formatCoverage marks all failed only when no source succeeded", () => {
@@ -77,7 +103,7 @@ test("formatCoverage marks all failed only when no source succeeded", () => {
   assert.match(coverage.text, /Searched: none/);
   assert.match(
     coverage.text,
-    /Unavailable: github \(HTTP 403\); web \(challenge response\)/,
+    /Failed: github \(HTTP 403\); web \(challenge response\)/,
   );
 });
 
@@ -100,6 +126,6 @@ test("formatCoverage treats web-only success as all operational sources failed",
   assert.match(coverage.text, /Searched: web/);
   assert.match(
     coverage.text,
-    /Unavailable: github \(HTTP 403\); npm \(HTTP 503\)/,
+    /Failed: github \(HTTP 403\); npm \(HTTP 503\)/,
   );
 });

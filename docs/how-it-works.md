@@ -10,14 +10,16 @@ The technical detail behind the one-paragraph summary in the README.
    fill category and outcome. Ecosystem detection uses only explicit Python,
    Rust, Ruby, PHP, or JVM signals.
 
-2. **Search** (`src/search.ts`) — executes a bounded plan in parallel.
+2. **Search** (`src/search.ts`) — executes a bounded plan. GitHub requests
+   share one rate-aware scheduler and are serialized across tool calls.
    GitHub gets two category queries (general relevance and `stars:0..3`);
    npm gets at most two unique formulations; GitLab gets category and
-   outcome; Show HN gets at most three; Product Hunt reads its feed once;
-   and experimental web search gets one category query. An explicit Python
-   plan adds one `language:python` GitHub query. Rust, Ruby, PHP, or JVM adds
-   one matching registry query. Duplicate or empty formulations can reduce
-   these counts; nothing expands them.
+   outcome; Show HN gets at most three; and optional Tavily web discovery
+   gets one category query. npm uses category and synonym formulations, not
+   the free-form outcome. An explicit Python plan adds one
+   `language:python` GitHub query. Rust, Ruby, PHP, or JVM adds one matching
+   registry query. Duplicate or empty formulations can reduce these counts;
+   nothing expands them.
 
 3. **Canonicalize and fuse** (`src/canonicalize.ts`, `src/fusion.ts`) —
    removes tracking parameters, fragments, trailing slashes, `.git`, and
@@ -35,10 +37,9 @@ The technical detail behind the one-paragraph summary in the README.
 
 5. **Re-rank and report** (`src/rerank.ts`, `src/report.ts`) — returns
    retrieval evidence plus instructions for the calling agent to judge
-   functional overlap. Coverage always names successful and failed sources.
-   Operational source failure prevents an all-clear response. DuckDuckGo is
-   explicitly experimental: its failure is reported but does not erase
-   results from stable sources.
+   functional overlap. Coverage separately names searched, unavailable, and
+   failed sources. Missing optional configuration is not mislabeled as a
+   failed attempt. Operational source failure prevents an all-clear response.
 
 ## Why the server does not call an LLM
 
@@ -131,12 +132,13 @@ turn logging off entirely.
 
 ## Environment variables
 
-Only `GITHUB_TOKEN` matters for normal use. The rest exist for specific
-situations and are listed here so they are documented somewhere.
+No credential is required. The first two variables improve normal discovery;
+the rest exist for specific situations.
 
 | Variable | Effect |
 |---|---|
 | `GITHUB_TOKEN` | Raises GitHub's search rate limit from 10/min to 30/min. Worth setting. |
+| `TAVILY_API_KEY` | Enables one bounded Tavily web search so projects and competing products outside developer indexes can surface. |
 | `REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1` | Stops writing the local usage log entirely. |
 | `REUSE_BEFORE_GENERATE_TELEMETRY_URL` | POSTs each event to a collector you run. Nothing is bundled or defaulted; without this, nothing leaves the machine. |
 | `REUSE_BEFORE_GENERATE_SHOW_ENERGY=1` | Appends an estimated "Wh saved" line to the tool output. Off by default, deliberately: it is an order-of-magnitude guess, and it increments as soon as a maintained candidate is found — before the agent has judged whether that candidate is actually relevant. It is not a measurement. |
@@ -190,10 +192,12 @@ pools, without needing an agent session.
 `npm run eval` is a different question: not "is it broken" but "is it any
 good". It runs 18 known cases (e.g. "find gitleaks from a description of a
 secret scanner") and reports the target rank within its expected pool.
-Deliberately **not** part of `npm test`, because it depends on live GitHub
+Deliberately **not** part of `npm test`, because it depends on live upstream
 ranking that drifts for reasons unrelated to this code. Set `GITHUB_TOKEN`
-before running it. A required source failure blocks baseline saving;
-experimental web failure is recorded but does not.
+and optionally `TAVILY_API_KEY` before running it. A required attempted
+source failure blocks baseline saving; an optional web failure is recorded
+but does not. An unconfigured web source is counted as unavailable, not as
+an attempted failure.
 
 Running the published `dist/` needs Node 18+. Running the test suite needs
 Node 22.6+, which strips TypeScript from `.test.ts` files natively.

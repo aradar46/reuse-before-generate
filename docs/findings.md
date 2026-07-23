@@ -4,7 +4,11 @@ This document records measured live retrieval, not semantic product claims.
 Run `npm run eval -- --diff`; a clean full run may update the baseline with
 `npm run eval -- --diff --save`.
 
-## Baseline (2026-07-23)
+## Previous baseline (2026-07-23)
+
+This baseline predates the v0.4 retrieval changes and is retained only as
+historical evidence. It must not be used to judge the current Tavily-backed
+pipeline; a new sequential external audit should replace it.
 
 The committed baseline is one authenticated run of 18 planned searches:
 15 reuse cases, two competition cases, and one deliberately absurd
@@ -39,8 +43,8 @@ from exactly one source in this run. The counts were:
 
 Web's unique win was Screen Studio, found in the competition pool at rank
 14. It therefore contributed evidence no other source supplied in this run,
-despite succeeding on only nine of 18 attempts. Product Hunt and the
-ecosystem registries had no unique target win in this baseline.
+despite succeeding on only nine of 18 attempts. The ecosystem registries had
+no unique target win in this baseline.
 
 The registry cases were mixed: ripgrep ranked 4, RuboCop 10, Monolog 1, and
 picocli was missed. Their winning target evidence was attributed to GitHub
@@ -61,9 +65,9 @@ a unique target contribution from them.
 - **Competition evidence is sparse.** Calendly ranked 1, but Screen Studio
   ranked 14. Two cases are enough to exercise the pool, not enough to claim
   broad commercial-market coverage.
-- **Web is experimental and brittle.** Half its attempts hit a challenge
-  response. Failures are shown in coverage and do not block an otherwise
-  clean baseline, but web-only discoveries can disappear between runs.
+- **Web availability affects recall.** v0.4 uses the optional Tavily API
+  instead of scraping a search-results page. Without a key it is explicitly
+  unavailable; upstream failures remain visible in coverage.
 - **Maintenance is a recency heuristic.** Reuse candidates are accepted
   when unarchived and active within a year. Issue responsiveness,
   contributor health, security posture, and project governance are not

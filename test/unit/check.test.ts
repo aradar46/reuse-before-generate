@@ -26,8 +26,12 @@ test("all failed sources return an error with honest coverage", async () => {
   );
 
   assert.equal(response.isError, true);
+  assert.match(
+    response.content[0].text,
+    /No required discovery source completed successfully/,
+  );
   assert.match(response.content[0].text, /Searched: none/);
-  assert.match(response.content[0].text, /Unavailable: github \(HTTP 403\); npm \(HTTP 503\)/);
+  assert.match(response.content[0].text, /Failed: github \(HTTP 403\); npm \(HTTP 503\)/);
   assert.deepEqual(events, [
     { type: "tool_invoked" },
     { type: "error", stage: "search" },
@@ -52,7 +56,7 @@ test("empty retrieval gives the exact honest negative caveat and coverage", asyn
   assert.match(response.content[0].text, /No strong match found in the sources searched\./);
   assert.match(response.content[0].text, /does not prove/i);
   assert.match(response.content[0].text, /Searched: github/);
-  assert.match(response.content[0].text, /Unavailable: web/);
+  assert.match(response.content[0].text, /Failed: web/);
   assert.doesNotMatch(response.content[0].text, /clear to build/i);
 });
 

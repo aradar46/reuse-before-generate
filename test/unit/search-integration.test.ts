@@ -10,19 +10,12 @@ import {
 
 afterEach(() => resetFetcher());
 
-const emptyProductHuntFeed =
-  "<?xml version=\"1.0\"?><rss><channel><title>Product Hunt</title></channel></rss>";
-const emptyWebPage =
-  "<!doctype html><html><div class=\"no-results\">No results found</div></html>";
-
 function emptyDiscoveryResponse(url: string): Response {
   const parsed = new URL(url);
   if (parsed.hostname === "api.github.com") return Response.json({ items: [] });
   if (parsed.hostname === "registry.npmjs.org") return Response.json({ objects: [] });
   if (parsed.hostname === "gitlab.com") return Response.json([]);
   if (parsed.hostname === "hn.algolia.com") return Response.json({ hits: [] });
-  if (parsed.hostname === "www.producthunt.com") return new Response(emptyProductHuntFeed);
-  if (parsed.hostname === "html.duckduckgo.com") return new Response(emptyWebPage);
   if (parsed.hostname === "crates.io") return Response.json({ crates: [] });
   throw new Error(`unexpected request: ${url}`);
 }
@@ -60,9 +53,14 @@ test("generic discovery uses explicit formulations, stable source order, and bou
     "npm",
     "gitlab",
     "hackernews",
-    "producthunt",
     "web",
   ]);
+  const web = results.at(-1);
+  assert.equal(web?.ok, false);
+  if (web && !web.ok) {
+    assert.equal(web.attempted, false);
+    assert.equal(web.reason, "TAVILY_API_KEY not configured");
+  }
 
   const hostCounts = new Map<string, number>();
   for (const url of urls) {
@@ -74,14 +72,18 @@ test("generic discovery uses explicit formulations, stable source order, and bou
     "registry.npmjs.org": 2,
     "gitlab.com": 2,
     "hn.algolia.com": 3,
-    "www.producthunt.com": 1,
-    "html.duckduckgo.com": 2,
   });
 
   const queryValues = urls.map(decodedQuery);
   assert.equal(queryValues.some((query) => query.includes("legacy")), false);
   assert.equal(queryValues.some((query) => query.includes("terminal json viewer")), true);
-  assert.equal(queryValues.some((query) => query.includes("browse JSON in terminal")), true);
+  assert.equal(
+    urls
+      .filter((url) => new URL(url).hostname === "registry.npmjs.org")
+      .map(decodedQuery)
+      .some((query) => query.includes("browse JSON in terminal")),
+    false,
+  );
   assert.equal(queryValues.some((query) => query.includes("command line data browser")), true);
 });
 
@@ -107,7 +109,6 @@ test("Python adds only its one separate GitHub lane", async () => {
     "npm",
     "gitlab",
     "hackernews",
-    "producthunt",
     "web",
     "python",
   ]);
@@ -187,7 +188,7 @@ test("same-source npm attempts merge evidence and tolerate one failed formulatio
   assert.equal(npm.value[0]?.repositoryUrl, "https://github.com/acme/termglass");
   assert.equal(npm.value[0]?.packageUrl, "https://npmjs.com/package/termglass");
   assert.equal(npm.value[0]?.kind, "open_source");
-  assert.equal(npm.value[0]?.evidence[0]?.query, "browse JSON in terminal");
+  assert.equal(npm.value[0]?.evidence[0]?.query, "command line data browser");
   assert.equal(npm.value[0]?.evidence[0]?.rank, 1);
 });
 

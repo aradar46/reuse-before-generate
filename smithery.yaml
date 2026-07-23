@@ -15,13 +15,20 @@ startCommand:
           Optional. Raises GitHub's search rate limit from 10 requests per
           minute to 30. The server works without it, just more slowly under
           repeated use.
+      tavilyApiKey:
+        type: string
+        title: Tavily API key
+        description: Optional. Adds web discovery for projects and products.
     required: []
   commandFunction:
     |-
     (config) => ({
       command: "npx",
       args: ["-y", "reuse-before-generate"],
-      env: config.githubToken ? { GITHUB_TOKEN: config.githubToken } : {}
+      env: {
+        ...(config.githubToken ? { GITHUB_TOKEN: config.githubToken } : {}),
+        ...(config.tavilyApiKey ? { TAVILY_API_KEY: config.tavilyApiKey } : {})
+      }
     })
   exampleConfig:
     githubToken: ghp_exampleTokenNotReal000000000000000000

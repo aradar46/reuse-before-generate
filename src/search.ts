@@ -1,6 +1,6 @@
 // Retrieval layer: pulls candidate matches for a free-text project
-// description from repository, package-registry, launch, product-feed, and
-// web sources. Kept deliberately dumb (lexical queries) — semantic filtering
+// description from repository, package-registry, launch, and optional web
+// sources. Kept deliberately dumb (lexical queries) — semantic filtering
 // happens later in rerank.ts.
 
 import { httpGet } from "./http.js";
@@ -11,14 +11,15 @@ import { mergeCandidates } from "./canonicalize.js";
 import type { RawCandidate } from "./candidate.js";
 import { searchGitLabResult } from "./sources/gitlab.js";
 import { searchShowHnResult } from "./sources/hacker-news.js";
-import { searchProductHuntResult } from "./sources/product-hunt.js";
-import { searchWebResult } from "./sources/duckduckgo.js";
 import { searchRegistryResults } from "./sources/registries.js";
+import { GitHubRequestScheduler } from "./github-scheduler.js";
+import { searchTavilyResult } from "./sources/tavily.js";
 
 export type { RawCandidate } from "./candidate.js";
 
-const USER_AGENT = "reuse-before-generate-mcp/0.3";
+const USER_AGENT = "reuse-before-generate-mcp/0.4";
 const GITHUB_API = "https://api.github.com";
+const githubScheduler = new GitHubRequestScheduler();
 
 function githubHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
@@ -147,18 +148,7 @@ async function fetchGitHubSearch(
 ): Promise<GitHubSearchItemT[]> {
   const q = encodeURIComponent(query);
   const url = `${GITHUB_API}/search/repositories?q=${q}&per_page=${per_page}${extraParams}`;
-  // GitHub's unauthenticated search endpoint has a tight primary limit
-  // (10/min) plus a separate secondary "abuse detection" throttle on rapid
-  // bursts — both surface as 403. One retry after a short backoff (honoring
-  // Retry-After when present) covers the common transient case without
-  // adding real latency to the normal path.
-  let res = await httpGet(url, githubHeaders());
-  if (res.status === 403 || res.status === 429) {
-    const retryAfterHeader = res.headers.get("retry-after");
-    const waitMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : 2000;
-    await new Promise((r) => setTimeout(r, waitMs));
-    res = await httpGet(url, githubHeaders());
-  }
+  const res = await githubScheduler.schedule(() => httpGet(url, githubHeaders()));
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
   }
@@ -426,7 +416,7 @@ export async function searchAllResults(
   const fallbackKeywords = keywords ?? extractKeywords(description, 4);
   const plan = buildQueryPlan(description, fallbackKeywords, queries);
   const { category, outcome, synonyms } = plan.formulations;
-  const npmQueries = uniqueQueries(category, outcome, synonyms).slice(0, 2);
+  const npmQueries = uniqueQueries(category, synonyms).slice(0, 2);
   const gitLabQueries = uniqueQueries(category, outcome);
   const showHnQueries = uniqueQueries(category, outcome, synonyms);
 
@@ -439,8 +429,7 @@ export async function searchAllResults(
     ),
     combineSourceQueries("gitlab", gitLabQueries, searchGitLabResult),
     combineSourceQueries("hackernews", showHnQueries, searchShowHnResult),
-    searchProductHuntResult(plan.formulations),
-    searchWebResult(category),
+    searchTavilyResult(category),
   ]);
   const python = plan.ecosystem === "python"
     ? searchPythonResult(description, [category])

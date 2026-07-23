@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   encodeUrlComponent,
   httpGet,
+  httpPostJson,
   setFetcher,
   resetFetcher,
 } from "../../dist/http.js";
@@ -44,6 +45,31 @@ test("httpGet attaches an abort signal so requests cannot hang forever", async (
   await httpGet("https://example.test/a", {});
 
   assert.equal(hadSignal, true);
+});
+
+test("httpPostJson sends bounded JSON through the injected fetcher", async () => {
+  let seenInit: RequestInit | undefined;
+  setFetcher(async (_url, init) => {
+    seenInit = init;
+    return Response.json({ ok: true });
+  });
+
+  await httpPostJson(
+    "https://example.test/search",
+    { Authorization: "Bearer secret" },
+    { query: "calendar booking", max_results: 10 },
+  );
+
+  assert.equal(seenInit?.method, "POST");
+  assert.equal(
+    (seenInit?.headers as Record<string, string>)["Content-Type"],
+    "application/json",
+  );
+  assert.deepEqual(JSON.parse(String(seenInit?.body)), {
+    query: "calendar booking",
+    max_results: 10,
+  });
+  assert.equal(seenInit?.signal instanceof AbortSignal, true);
 });
 
 test("setFetcher still works after resetFetcher", async () => {

@@ -73,3 +73,20 @@ export function httpGet(
     signal: AbortSignal.timeout(timeoutMs),
   });
 }
+
+export function httpPostJson(
+  url: string,
+  headers: Record<string, string>,
+  body: unknown,
+  timeoutMs: number = DEFAULT_TIMEOUT_MS,
+): Promise<Response> {
+  return current(url, {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}

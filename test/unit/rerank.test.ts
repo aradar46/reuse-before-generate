@@ -43,7 +43,7 @@ const reuse = {
 };
 
 const competition = {
-  source: "producthunt",
+  source: "web",
   id: "hosted-widget",
   name: "Hosted Widget",
   url: "https://hosted.example/widget",
@@ -51,9 +51,9 @@ const competition = {
   kind: "unknown",
   traction: "52 points",
   evidence: [{
-    source: "producthunt",
+    source: "web",
     sourceId: "hosted-widget",
-    sourceUrl: "https://producthunt.com/products/widget",
+    sourceUrl: "https://search.example/results/widget",
     destinationUrl: "https://hosted.example/widget",
     title: "Hosted Widget",
     snippet: "Launch evidence snippet",
