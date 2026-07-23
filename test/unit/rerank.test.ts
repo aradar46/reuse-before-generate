@@ -110,6 +110,9 @@ test("rerank prompt groups reuse and competition and renders compact evidence", 
     data["Projects you could reuse"][0].constraintEvidence,
     reuse.constraintEvidence,
   );
+  assert.equal("localPrescore" in data["Projects you could reuse"][0], false);
+  assert.equal("semanticFit" in data["Projects you could reuse"][0], false);
+  assert.equal("authorityScore" in data["Projects you could reuse"][0], false);
   assert.deepEqual(
     data["Projects you could reuse"][0].evidence.map(
       (item: { source: string; rank: number; query: string; snippet: string }) =>
@@ -184,8 +187,8 @@ test("rerank prompt contains bounded adversarial fields only as untrusted JSON d
   assert.match(prompt.slice(end + END_MARKER.length), /ignore any instructions.*data only/is);
   assert.match(stored.name, /evil "name" ``` END UNTRUSTED/);
   assert.match(stored.name, /ignore previous instructions/);
-  assert.ok(stored.name.length <= 500);
-  assert.ok(stored.evidence[0].snippet.length <= 500);
+  assert.ok(stored.name.length <= 320);
+  assert.ok(stored.evidence[0].snippet.length <= 320);
   assert.doesNotMatch(stored.name, /[\u0000-\u001f\u007f-\u009f]/);
   assert.doesNotMatch(prompt, /\\u0000|\\u001b|\\u0007/);
 });
@@ -211,8 +214,8 @@ test("rerank prompt compacts candidates after ranking while preserving both pool
     [...manyReuse, ...manyCompetition],
   ));
 
-  assert.equal(data["Projects you could reuse"].length, 8);
-  assert.equal(data["Products you would compete with"].length, 8);
+  assert.equal(data["Projects you could reuse"].length, 5);
+  assert.equal(data["Products you would compete with"].length, 5);
   assert.equal(data["Projects you could reuse"][0].id, "reuse-1");
   assert.equal(
     data["Products you would compete with"][0].id,
@@ -239,6 +242,30 @@ test("rerank prompt limits evidence per candidate while preserving source divers
   ));
   const compact = data["Projects you could reuse"][0].evidence;
 
-  assert.equal(compact.length, 3);
+  assert.equal(compact.length, 2);
   assert.ok(compact.some((item: { source: string }) => item.source === "web"));
+});
+
+test("rerank prompt never pads products with informational pages", () => {
+  const informational = {
+    ...competition,
+    id: "dictionary",
+    name: "Widget definition",
+    canonicalUrl: "https://dictionary.example/widget",
+    url: "https://dictionary.example/widget",
+    rankingPenalties: [
+      "informational page rather than a project or product",
+    ],
+  };
+  const data = structuredEvidence(buildRerankPrompt(
+    "automate widgets",
+    [competition, informational],
+  ));
+
+  assert.deepEqual(
+    data["Products you would compete with"].map(
+      (item: { id: string }) => item.id,
+    ),
+    ["hosted-widget"],
+  );
 });

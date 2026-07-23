@@ -167,6 +167,20 @@ function freshestPushedAt(
   return current;
 }
 
+function freshestDate(
+  current: string | undefined,
+  next: string | undefined,
+): string | undefined {
+  if (!next) return current;
+  if (!current) return next;
+  const currentTime = validActivityTime(current);
+  const nextTime = validActivityTime(next);
+  return nextTime !== undefined
+    && (currentTime === undefined || nextTime > currentTime)
+    ? next
+    : current;
+}
+
 /**
  * Collapses observations of the same repository (or destination where no
  * repository is known), retaining every independently useful evidence item.
@@ -259,6 +273,15 @@ export function mergeCandidates(candidates: readonly RawCandidate[]): RawCandida
         current.repositorySizeKb,
         candidate.repositorySizeKb,
       ),
+      latestReleaseAt: freshestDate(
+        current.latestReleaseAt,
+        candidate.latestReleaseAt,
+      ),
+      latestReleaseUrl:
+        freshestDate(current.latestReleaseAt, candidate.latestReleaseAt)
+          === candidate.latestReleaseAt
+          ? candidate.latestReleaseUrl ?? current.latestReleaseUrl
+          : current.latestReleaseUrl ?? candidate.latestReleaseUrl,
       traction: current.traction ?? candidate.traction,
       pushedAt: freshestPushedAt(current.pushedAt, candidate),
       archived: current.archived ?? candidate.archived,

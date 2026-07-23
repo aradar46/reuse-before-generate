@@ -15,7 +15,7 @@ const STOP_WORDS = new Set([
 const COMPONENT_PATTERN =
   /\b(?:adapter|client|component|connector|extension|integration|middleware|plugin|sdk|template|theme|widget|wrapper)\b/i;
 const INFORMATIONAL_PATTERN =
-  /\b(?:alternatives?|best(?:\s+\d+)?|comparison|guide|how to|quora|reddit|reviews?|stackexchange|top(?:\s+\d+)?|what is|youtube)\b/i;
+  /\b(?:alternatives?|best(?:\s+\d+)?|comparison|definition|dictionary|encyclopedia|guide|how to|quora|reddit|reviews?|stackexchange|top(?:\s+\d+)?|what is|wiktionary|wikipedia|youtube)\b/i;
 const AWESOME_PATTERN = /\bawesome[- ]|\/awesome[-/]/i;
 const INFORMATIONAL_PATH_PATTERN =
   /\/(?:article|articles|blog|blogs|guide|guides|post|posts|questions?|reviews?)(?:\/|$)/i;
@@ -27,6 +27,52 @@ const APPLICATION_DISTRIBUTION_HOSTS = new Set([
   "play.google.com",
   "snapcraft.io",
 ]);
+const INFORMATIONAL_HOSTS = new Set([
+  "dictionary.com",
+  "en.wiktionary.org",
+  "merriam-webster.com",
+  "wikipedia.org",
+]);
+
+interface EvidenceConcept {
+  constraint: RegExp;
+  evidence: RegExp;
+}
+
+const EVIDENCE_CONCEPTS: EvidenceConcept[] = [
+  {
+    constraint: /\b(?:offline|without internet|no internet)\b/i,
+    evidence: /\b(?:offline|without internet|no internet|does not require (?:an )?internet connection)\b/i,
+  },
+  {
+    constraint: /\b(?:no account|account[- ]free|without (?:an )?account|no (?:sign[ -]?up|login|registration))\b/i,
+    evidence: /\b(?:no account|account[- ]free|without (?:an )?account|no (?:sign[ -]?up|login|registration)|does not require (?:an )?account)\b/i,
+  },
+  {
+    constraint: /\b(?:local[- ]only|local[- ]first|on[- ]device|no cloud)\b/i,
+    evidence: /\b(?:local[- ]only|local[- ]first|on[- ]device|no cloud|stored? (?:only )?(?:locally|on (?:your|the) (?:device|phone))|stays? on (?:your|the) (?:device|phone)|remains? on (?:your|the) (?:device|phone))\b/i,
+  },
+  {
+    constraint: /\b(?:android|f[- ]?droid|google play)\b/i,
+    evidence: /\b(?:android|f[- ]?droid|google play)\b/i,
+  },
+  {
+    constraint: /\b(?:ios|iphone|ipad|app store)\b/i,
+    evidence: /\b(?:ios|iphone|ipad|app store|apps\.apple\.com)\b/i,
+  },
+  {
+    constraint: /\b(?:open source|foss|free software)\b/i,
+    evidence: /\b(?:open source|foss|free software|source code (?:is )?available)\b/i,
+  },
+  {
+    constraint: /\b(?:no tracking|without tracking|tracker[- ]free)\b/i,
+    evidence: /\b(?:no tracking|without tracking|tracker[- ]free|no analytics)\b/i,
+  },
+  {
+    constraint: /\b(?:encrypt(?:ed|ion)?|sqlcipher|aes)\b/i,
+    evidence: /\b(?:encrypt(?:ed|ion)?|sqlcipher|aes(?:-\d+)?)\b/i,
+  },
+];
 
 function normalizedToken(token: string): string {
   if (token.length > 5 && token.endsWith("ies")) {
@@ -144,12 +190,22 @@ function constraintsFor(
 ): ConstraintEvidence[] {
   return constraints.map((constraint) => {
     const sources = [...new Set(candidate.evidence
-      .filter((item) =>
-        coverage(
-          constraint,
-          new Set(tokens(`${item.title} ${item.snippet}`, true, true)),
-          true,
-        ) === 1)
+      .filter((item) => {
+        const evidence = [
+          item.title,
+          item.snippet,
+          item.sourceUrl,
+          item.destinationUrl,
+        ].join(" ");
+        const concept = EVIDENCE_CONCEPTS.find((entry) =>
+          entry.constraint.test(constraint));
+        return (concept?.evidence.test(evidence) ?? false)
+          || coverage(
+            constraint,
+            new Set(tokens(evidence, true, true)),
+            true,
+          ) === 1;
+      })
       .map((item) => item.source))];
     return sources.length > 0
       ? { constraint, status: "claimed" as const, sources }
@@ -197,6 +253,8 @@ export function rankCandidates<T extends RankedCandidate>(
       const sources = evidenceSources(candidate);
       const substance = repositorySubstance(candidate);
       const constraintEvidence = constraintsFor(candidate, plan.constraints);
+      const priorities = plan.priorities ?? [];
+      const priorityEvidence = constraintsFor(candidate, priorities);
       const distributionEvidence =
         plan.artifactType === "application"
         && hasApplicationDistributionEvidence(candidate);
@@ -245,6 +303,15 @@ export function rankCandidates<T extends RankedCandidate>(
       const constraintCoverage = plan.constraints.length === 0
         ? 0
         : constraintMatches / plan.constraints.length;
+      let priorityBoost = 0;
+      for (const [index, evidence] of priorityEvidence.entries()) {
+        if (evidence.status !== "claimed") continue;
+        priorityBoost += 0.16 / (2 ** index);
+        signals.push(
+          `priority ${index + 1}: ${evidence.constraint.toLocaleLowerCase()}`,
+        );
+      }
+      priorityBoost = bounded(priorityBoost, 0, 0.22);
 
       const repositoryEvidence = [...sources].some((source) =>
         source === "github" || source === "gitlab" || source === "python");
@@ -281,6 +348,18 @@ export function rankCandidates<T extends RankedCandidate>(
         && (
           INFORMATIONAL_PATTERN.test(informationalIdentity)
           || INFORMATIONAL_PATH_PATTERN.test(candidate.url)
+          || (() => {
+            try {
+              const host = new URL(candidate.url).hostname
+                .toLocaleLowerCase()
+                .replace(/^www\./, "");
+              return INFORMATIONAL_HOSTS.has(host)
+                || host.endsWith(".wikipedia.org")
+                || host.endsWith(".wiktionary.org");
+            } catch {
+              return false;
+            }
+          })()
         )
       ) {
         penalty += 0.65;
@@ -324,6 +403,7 @@ export function rankCandidates<T extends RankedCandidate>(
           + categoryCoverage * 0.34
           + Math.max(outcomeCoverage, synonymCoverage) * 0.22
           + constraintCoverage * 0.3
+          + priorityBoost
           + laneAgreement
           + sourceAgreement
           + repositoryFit
@@ -341,6 +421,7 @@ export function rankCandidates<T extends RankedCandidate>(
         authorityScore: Number(authorityScore.toFixed(4)),
         repositorySubstance: substance,
         constraintEvidence,
+        priorityEvidence,
         rankingSignals: signals,
         rankingPenalties: penalties,
         discoveryTier: tier(candidate, score, penalties),

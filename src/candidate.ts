@@ -43,6 +43,8 @@ export interface RawCandidate {
   stars?: number;
   forks?: number;
   repositorySizeKb?: number;
+  latestReleaseAt?: string;
+  latestReleaseUrl?: string;
   pushedAt?: string;
   archived?: boolean;
   kind: CandidateKind;
@@ -63,6 +65,7 @@ export interface RankedCandidate extends RawCandidate {
   authorityScore?: number;
   repositorySubstance?: RepositorySubstance;
   constraintEvidence?: ConstraintEvidence[];
+  priorityEvidence?: ConstraintEvidence[];
   rankingSignals?: string[];
   rankingPenalties?: string[];
   discoveryTier?:

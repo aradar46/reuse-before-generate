@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { resetFetcher, setFetcher } from "../../dist/http.js";
 import {
   searchAllResults,
+  searchGitHubPlanResult,
   searchGitHubResult,
   searchNpmResult,
   searchPythonResult,
@@ -285,4 +286,53 @@ test("GitHub, npm, and Python mappings include actual ranked evidence and URLs",
   assert.equal(npm.value[0]?.evidence[0]?.query, "terminal viewer");
   assert.equal(python.value[0]?.repositoryUrl, "https://github.com/acme/termglass");
   assert.equal(python.value[0]?.evidence[0]?.query, "terminal viewer language:python");
+});
+
+test("GitHub plan enriches only the strongest repositories with release metadata", async () => {
+  const requested: string[] = [];
+  setFetcher(async (url) => {
+    requested.push(String(url));
+    const parsed = new URL(url);
+    if (parsed.pathname.endsWith("/releases")) {
+      return Response.json([{
+        html_url: "https://github.com/acme/termglass/releases/tag/v2.0.0",
+        published_at: "2026-07-21T00:00:00Z",
+      }]);
+    }
+    return Response.json({
+      items: [{
+        full_name: "acme/termglass",
+        html_url: "https://github.com/acme/termglass",
+        description: "Terminal JSON viewer",
+        stargazers_count: 7,
+        size: 456,
+        forks_count: 3,
+        pushed_at: "2026-07-20T00:00:00Z",
+        archived: false,
+      }],
+    });
+  });
+
+  const result = await searchGitHubPlanResult({
+    formulations: {
+      category: "terminal json viewer",
+      outcome: "browse JSON in terminal",
+      synonyms: "command line data browser",
+    },
+    constraints: [],
+    priorities: [],
+    artifactType: "application",
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value[0]?.latestReleaseAt, "2026-07-21T00:00:00Z");
+  assert.equal(
+    result.value[0]?.latestReleaseUrl,
+    "https://github.com/acme/termglass/releases/tag/v2.0.0",
+  );
+  assert.equal(
+    requested.filter((url) => new URL(url).pathname.endsWith("/releases")).length,
+    1,
+  );
 });

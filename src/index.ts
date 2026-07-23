@@ -15,7 +15,7 @@ import { ARTIFACT_TYPES } from "./query-plan.js";
 
 const server = new McpServer({
   name: "reuse-before-generate",
-  version: "0.8.0",
+  version: "0.9.0",
 });
 
 server.registerTool(
@@ -55,11 +55,18 @@ server.registerTool(
             .array(z.string().min(2))
             .max(8)
             .optional(),
+          priorities: z
+            .array(z.string().min(2))
+            .max(4)
+            .optional()
+            .describe(
+              "Ordered preferences from most important to least important, such as [\"Android\", \"iOS\"]. Both can appear in results, but earlier entries receive more ranking weight.",
+            ),
           artifactType: z.enum(ARTIFACT_TYPES).optional(),
         })
         .optional()
         .describe(
-          "Optional high-quality intent inferred semantically by the calling agent: category names what this is, outcome says what it accomplishes, synonyms supplies distinct terminology maintainers or product makers may use, constraints supplies up to 8 must-have properties, and artifactType says whether the desired result is an application, hosted service, CLI, or library. Older callers may omit artifactType and constraints; the server will infer a conservative fallback.",
+          "Optional high-quality intent inferred semantically by the calling agent: category names what this is, outcome says what it accomplishes, synonyms supplies distinct terminology maintainers or product makers may use, constraints supplies up to 8 must-have properties, priorities supplies up to 4 ordered preferences, and artifactType says whether the desired result is an application, hosted service, CLI, or library. Older callers may omit these optional fields; the server will infer conservative fallbacks.",
         ),
     }),
   },

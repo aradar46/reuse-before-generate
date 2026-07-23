@@ -15,12 +15,14 @@ export interface QueryInput {
   outcome: string;
   synonyms: string;
   constraints?: string[];
+  priorities?: string[];
   artifactType?: ArtifactType;
 }
 
 export interface QueryPlan {
   formulations: QueryFormulations;
   constraints: string[];
+  priorities: string[];
   artifactType: ArtifactType;
   ecosystem?: Ecosystem;
 }
@@ -29,7 +31,7 @@ function normalize(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
 
-function normalizeConstraints(values: readonly string[] | undefined): string[] {
+function normalizeList(values: readonly string[] | undefined): string[] {
   const seen = new Set<string>();
   const constraints: string[] = [];
   for (const raw of values ?? []) {
@@ -80,7 +82,8 @@ export function buildQueryPlan(
   const category = normalize(queries?.category ?? keywords.join(" "));
   const outcome = normalize(queries?.outcome ?? description);
   const synonyms = queries === undefined ? undefined : normalize(queries.synonyms);
-  const constraints = normalizeConstraints(queries?.constraints);
+  const constraints = normalizeList(queries?.constraints);
+  const priorities = normalizeList(queries?.priorities);
   const formulations: QueryFormulations = synonyms
     ? { category, outcome, synonyms }
     : { category, outcome };
@@ -98,9 +101,10 @@ export function buildQueryPlan(
     outcome,
     synonyms ?? "",
     ...constraints,
+    ...priorities,
   );
 
   return ecosystem
-    ? { formulations, constraints, artifactType, ecosystem }
-    : { formulations, constraints, artifactType };
+    ? { formulations, constraints, priorities, artifactType, ecosystem }
+    : { formulations, constraints, priorities, artifactType };
 }

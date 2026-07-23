@@ -64,10 +64,12 @@ discovery beyond developer indexes so both reusable projects and existing
 products can surface.
 
 The agent may supply structured intent: a category name, the outcome the
-tool should achieve, alternative terminology, must-have constraints, and
-whether the desired artifact is an application, service, CLI, or library.
-Older clients can omit the last two fields. The planner uses a fixed number
-of requests; intent fields do not create an unbounded search loop.
+tool should achieve, alternative terminology, must-have constraints, ordered
+preferences, and whether the desired artifact is an application, service,
+CLI, or library. Ordered preferences let a caller say Android first and iOS
+second while still discovering both. Older clients can omit these optional
+fields. The planner uses a fixed number of requests; intent fields do not
+create an unbounded search loop.
 
 Results receive a transparent local prescore before the calling agent makes
 the final semantic judgment. It rewards workflow and constraint fit and
@@ -78,24 +80,29 @@ room for both an established, relevant project and a promising niche project;
 raw popularity alone cannot earn the authority slot. Official homepages also
 link open-source projects to their existing product identity, so one entity
 can correctly appear in both sections. Returned evidence is capped after
-ranking to keep the agent context focused. Tavily formulations adapt to the
-artifact type and must-have constraints instead of treating every request as
-self-hosted software. Application plans with explicit Android or iOS intent
-also receive bounded F-Droid or App Store discovery lanes. Recognized source
+ranking to five candidates per section and two source-diverse evidence
+records per candidate. Informational pages are never used to pad the product
+section. Tavily formulations adapt to the artifact type and must-have
+constraints instead of treating every request as self-hosted software.
+Application plans with explicit Android or iOS intent also receive bounded,
+domain-restricted F-Droid or App Store discovery lanes. Recognized source
 links in Tavily page content can join an official product page to its GitHub
 or GitLab repository, preferring links explicitly labelled as source or the
 official repository over mirrors and site templates.
 
-Repository size, forks, and constraint evidence are returned as confidence
-signals. Application-store evidence is surfaced as a maturity signal. A very
-small application repository is marked
+Repository size, forks, latest published GitHub release metadata for at most
+five leading repositories, and constraint evidence are returned as confidence
+signals. Application-store evidence is surfaced as a distribution-maturity
+signal. A very small application repository is marked
 `minimal_repository` and demoted rather than presented as an implemented
 foundation. A larger repository is only marked `substantial_repository`;
-size alone does not verify implementation quality. Constraint matches are
-explicitly `claimed` or `unknown`; the same per-evidence claims drive both
-ranking and the evidence shown to the caller, so those fields cannot
-contradict one another. Retrieved claims are not represented as independently
-verified facts. The
+size alone does not verify implementation quality. Constraint and priority
+matches are explicitly `claimed` or `unknown`. Common equivalent wording,
+such as “no signup” for “no account” or “stays on your device” for local-only
+storage, is recognized without turning claims into verification. The same
+per-evidence claims drive both ranking and the evidence shown to the caller,
+so those fields cannot contradict one another. Retrieved claims are not
+represented as independently verified facts. The
 calling agent reports functional overlap, reuse readiness, product maturity,
 constraint evidence, and confidence separately instead of collapsing them
 into one numeric score.

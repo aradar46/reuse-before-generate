@@ -117,3 +117,14 @@ test("buildQueryPlan normalizes and deduplicates constraints", () => {
 
   assert.deepEqual(plan.constraints, ["privacy", "Offline"]);
 });
+
+test("buildQueryPlan preserves ordered priorities and deduplicates them", () => {
+  const plan = buildQueryPlan("A mobile tracker", ["mobile", "tracker"], {
+    category: "personal tracker",
+    outcome: "track private records",
+    synonyms: "private journal",
+    priorities: [" Android ", "iOS", "android", ""],
+  });
+
+  assert.deepEqual(plan.priorities, ["Android", "iOS"]);
+});

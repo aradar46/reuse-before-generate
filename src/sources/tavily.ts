@@ -7,7 +7,7 @@ import { err, ok, unavailable, type Result } from "../result.js";
 
 const SEARCH_URL = "https://api.tavily.com/search";
 const TIMEOUT_MS = 8_000;
-const USER_AGENT = "reuse-before-generate-mcp/0.7";
+const USER_AGENT = "reuse-before-generate-mcp/0.9";
 
 const TavilySearchResponse = z.object({
   results: z.array(z.object({
@@ -131,7 +131,10 @@ async function repositoryMetadata(
 export async function searchTavilyResult(
   query: string,
   limit = 10,
-  options: { includeRawContent?: boolean } = {},
+  options: {
+    includeRawContent?: boolean;
+    includeDomains?: string[];
+  } = {},
 ): Promise<Result<RawCandidate[]>> {
   const token = process.env.TAVILY_API_KEY?.trim();
   if (!token) {
@@ -148,6 +151,9 @@ export async function searchTavilyResult(
         max_results: limit,
         include_answer: false,
         include_raw_content: options.includeRawContent === true,
+        ...(options.includeDomains && options.includeDomains.length > 0
+          ? { include_domains: options.includeDomains }
+          : {}),
       },
       TIMEOUT_MS,
     );
@@ -280,6 +286,7 @@ function compactConstraints(plan: QueryPlan): string {
 interface DiscoveryQuery {
   query: string;
   includeRawContent: boolean;
+  includeDomains?: string[];
 }
 
 function applicationDistributionQueries(plan: QueryPlan): DiscoveryQuery[] {
@@ -289,18 +296,21 @@ function applicationDistributionQueries(plan: QueryPlan): DiscoveryQuery[] {
     plan.formulations.outcome,
     plan.formulations.synonyms ?? "",
     ...plan.constraints,
+    ...(plan.priorities ?? []),
   ].join(" ").toLocaleLowerCase();
   const queries: DiscoveryQuery[] = [];
   if (/\b(?:android|f-droid|google play)\b/.test(text)) {
     queries.push({
       query: `${plan.formulations.category} Android F-Droid app`,
       includeRawContent: true,
+      includeDomains: ["f-droid.org"],
     });
   }
   if (/\b(?:ios|iphone|ipad|app store)\b/.test(text)) {
     queries.push({
       query: `${plan.formulations.synonyms ?? plan.formulations.category} iOS App Store app`,
       includeRawContent: true,
+      includeDomains: ["apps.apple.com"],
     });
   }
   return queries;
@@ -364,7 +374,12 @@ export async function searchTavilyDiscoveryResult(
     searchTavilyResult(
       query.query,
       5,
-      { includeRawContent: query.includeRawContent },
+      {
+        includeRawContent: query.includeRawContent,
+        ...(query.includeDomains
+          ? { includeDomains: query.includeDomains }
+          : {}),
+      },
     )));
   const successes = results.filter((result) => result.ok);
   if (successes.length > 0) {

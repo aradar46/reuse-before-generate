@@ -3,7 +3,7 @@ import { encodeUrlComponent, httpGet } from "../http.js";
 import { err, ok, type Result } from "../result.js";
 import { GitLabSearchResponse, type GitLabSearchItemT } from "../schemas.js";
 
-const USER_AGENT = "reuse-before-generate-mcp/0.7";
+const USER_AGENT = "reuse-before-generate-mcp/0.9";
 const API_URL = "https://gitlab.com/api/v4/projects";
 
 function toCandidate(item: GitLabSearchItemT, query: string, rank: number): RawCandidate {

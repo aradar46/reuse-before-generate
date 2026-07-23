@@ -181,6 +181,7 @@ test("Tavily discovery adds platform distribution lanes for applications", async
       synonyms: "menstrual cycle tracker",
     },
     constraints: ["Android", "iOS", "offline", "no account"],
+    priorities: ["Android", "iOS"],
     artifactType: "application",
   });
 
@@ -190,12 +191,13 @@ test("Tavily discovery adds platform distribution lanes for applications", async
       body.query,
       body.max_results,
       body.include_raw_content,
+      body.include_domains,
     ]),
     [
-      ["private period tracker Android iOS offline open source app", 5, true],
-      ["menstrual cycle tracker Android iOS offline official app", 5, true],
-      ["private period tracker Android F-Droid app", 5, true],
-      ["menstrual cycle tracker iOS App Store app", 5, true],
+      ["private period tracker Android iOS offline open source app", 5, true, undefined],
+      ["menstrual cycle tracker Android iOS offline official app", 5, true, undefined],
+      ["private period tracker Android F-Droid app", 5, true, ["f-droid.org"]],
+      ["menstrual cycle tracker iOS App Store app", 5, true, ["apps.apple.com"]],
     ],
   );
 });

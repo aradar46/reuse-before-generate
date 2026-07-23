@@ -105,3 +105,15 @@ test("structured formulations preserve legacy keyword parsing", () => {
     synonyms: "code style autoformatter",
   });
 });
+
+test("parses ordered priorities separately from constraints", () => {
+  const out = parseArgs(argv(
+    "find a mobile tracker",
+    "--category", "personal tracker",
+    "--outcome", "track personal records",
+    "--synonyms", "private journal",
+    "--priorities", "Android, iOS",
+  ));
+
+  assert.deepEqual(out.queries?.priorities, ["Android", "iOS"]);
+});

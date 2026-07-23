@@ -33,6 +33,11 @@ export const GitHubSearchResponse = z.object({
   items: z.array(GitHubSearchItem),
 });
 
+export const GitHubReleaseResponse = z.array(z.object({
+  html_url: z.string(),
+  published_at: z.string().nullable(),
+}));
+
 export const NpmSearchResponse = z.object({
   objects: z.array(
     z.object({

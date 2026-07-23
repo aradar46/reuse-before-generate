@@ -5,7 +5,7 @@ The technical detail behind the one-paragraph summary in the README.
 ## The pipeline
 
 1. **Plan** (`src/query-plan.ts`) — normalizes category, outcome, synonyms,
-   optional must-have constraints, and an optional artifact type
+   optional must-have constraints, ordered priorities, and an optional artifact type
    (`application`, `service`, `cli`, or `library`) supplied by the calling
    agent. Older clients fall back to conservative artifact inference.
    Ecosystem detection uses only explicit Python, Rust, Ruby, PHP, or JVM
@@ -18,8 +18,10 @@ The technical detail behind the one-paragraph summary in the README.
    at most three; and optional Tavily web discovery gets separate
    reusable-project and existing-product queries shaped by artifact type and
    up to three must-have constraints. Application plans that explicitly
-   mention Android or iOS add a matching F-Droid or App Store distribution
-   query, for a maximum of four bounded Tavily requests. npm gets at most two unique
+   mention Android or iOS add a domain-restricted F-Droid or App Store
+   distribution query, for a maximum of four bounded Tavily requests. GitHub
+   release metadata is fetched for at most five leading repository candidates.
+   npm gets at most two unique
    formulations for library and CLI requests, and is skipped for applications
    and services. npm uses category and synonym formulations, not the free-form
    outcome. An explicit Python plan adds one

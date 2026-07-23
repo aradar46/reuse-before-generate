@@ -163,6 +163,69 @@ test("ranking signals use the same per-evidence constraint claims shown to calle
   );
 });
 
+test("constraint evidence recognizes equivalent product language and platform URLs", async () => {
+  const plan = buildQueryPlan("A private mobile journal", [], {
+    category: "private journal",
+    outcome: "record personal notes privately",
+    synonyms: "diary",
+    constraints: ["works offline", "no account", "local-only data", "Android"],
+    artifactType: "application",
+  });
+  const raw = candidate(
+    "github",
+    "quiet-journal",
+    "A private journal",
+    ["private journal"],
+  );
+  raw.evidence = [{
+    ...raw.evidence[0]!,
+    source: "web",
+    sourceUrl: "https://f-droid.org/packages/org.example.quietjournal",
+    destinationUrl: "https://f-droid.org/packages/org.example.quietjournal",
+    snippet: "100% offline. No signup. Everything stays on your device.",
+  }];
+
+  const [prepared] = await prepareCandidates([raw], plan);
+
+  assert.deepEqual(prepared?.constraintEvidence, [
+    { constraint: "works offline", status: "claimed", sources: ["web"] },
+    { constraint: "no account", status: "claimed", sources: ["web"] },
+    { constraint: "local-only data", status: "claimed", sources: ["web"] },
+    { constraint: "Android", status: "claimed", sources: ["web"] },
+  ]);
+});
+
+test("ordered priorities favor the primary platform while retaining secondary evidence", async () => {
+  const plan = buildQueryPlan("A mobile tracker", [], {
+    category: "personal tracker",
+    outcome: "track personal records",
+    synonyms: "private journal",
+    priorities: ["Android", "iOS"],
+    artifactType: "application",
+  });
+  const android = candidate(
+    "github",
+    "android-tracker",
+    "Personal tracker for Android",
+    ["personal tracker"],
+  );
+  const ios = candidate(
+    "github",
+    "ios-tracker",
+    "Personal tracker for iPhone and iOS",
+    ["personal tracker"],
+  );
+
+  const prepared = await prepareCandidates([ios, android], plan);
+
+  assert.equal(prepared[0]?.name, "android-tracker");
+  assert.deepEqual(prepared[0]?.priorityEvidence, [
+    { constraint: "Android", status: "claimed", sources: ["github"] },
+    { constraint: "iOS", status: "unknown", sources: [] },
+  ]);
+  assert.ok(prepared[0]?.rankingSignals?.includes("priority 1: android"));
+});
+
 test("application distribution evidence is exposed as a maturity signal", async () => {
   const plan = buildQueryPlan("Install a private journal", [], {
     category: "private journal",
@@ -341,6 +404,36 @@ test("reviews and best-of pages receive an informational penalty", async () => {
   assert.ok(review?.rankingPenalties?.some((item) =>
     item.includes("informational page")));
   assert.ok((review?.localScore ?? 0) < 0);
+});
+
+test("dictionary and encyclopedia pages receive an informational penalty", async () => {
+  const plan = buildQueryPlan("Personal CRM", [], {
+    category: "personal CRM",
+    outcome: "manage relationships",
+    synonyms: "contact organizer",
+    artifactType: "application",
+  });
+  const [definition] = await prepareCandidates([{
+    source: "web",
+    id: "https://en.wiktionary.org/wiki/contact",
+    name: "contact - Wiktionary",
+    url: "https://en.wiktionary.org/wiki/contact",
+    description: "A dictionary definition of contact",
+    kind: "unknown",
+    evidence: [{
+      source: "web",
+      sourceId: "definition",
+      sourceUrl: "https://en.wiktionary.org/wiki/contact",
+      destinationUrl: "https://en.wiktionary.org/wiki/contact",
+      title: "contact - Wiktionary",
+      snippet: "A dictionary definition",
+      query: "personal CRM official app",
+      rank: 1,
+    }],
+  }], plan);
+
+  assert.ok(definition?.rankingPenalties?.some((item) =>
+    item.includes("informational page")));
 });
 
 test("application ranking demotes a minimal repository shell and exposes evidence confidence", async () => {

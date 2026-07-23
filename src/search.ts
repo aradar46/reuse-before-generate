@@ -4,7 +4,12 @@
 // happens later in rerank.ts.
 
 import { httpGet } from "./http.js";
-import { GitHubSearchResponse, NpmSearchResponse, type GitHubSearchItemT } from "./schemas.js";
+import {
+  GitHubReleaseResponse,
+  GitHubSearchResponse,
+  NpmSearchResponse,
+  type GitHubSearchItemT,
+} from "./schemas.js";
 import { ok, err, type Result, type Source } from "./result.js";
 import {
   buildQueryPlan,
@@ -21,7 +26,7 @@ import { searchTavilyDiscoveryResult } from "./sources/tavily.js";
 
 export type { RawCandidate } from "./candidate.js";
 
-const USER_AGENT = "reuse-before-generate-mcp/0.7";
+const USER_AGENT = "reuse-before-generate-mcp/0.9";
 const GITHUB_API = "https://api.github.com";
 const githubScheduler = new GitHubRequestScheduler();
 
@@ -201,6 +206,45 @@ function toGitHubCandidate(
   };
 }
 
+async function withLatestGitHubRelease(
+  candidate: RawCandidate,
+): Promise<RawCandidate> {
+  const repository = candidate.id.split("/");
+  if (repository.length !== 2) return candidate;
+  const url = `${GITHUB_API}/repos/${repository.map(encodeURIComponent).join("/")}/releases?per_page=1`;
+  try {
+    const response = await githubScheduler.schedule(() =>
+      httpGet(url, githubHeaders()));
+    if (!response.ok) return candidate;
+    const parsed = GitHubReleaseResponse.safeParse(await response.json());
+    const release = parsed.success ? parsed.data[0] : undefined;
+    if (!release?.published_at) return candidate;
+    return {
+      ...candidate,
+      latestReleaseAt: release.published_at,
+      latestReleaseUrl: release.html_url,
+    };
+  } catch {
+    return candidate;
+  }
+}
+
+async function enrichTopGitHubReleases(
+  candidates: readonly RawCandidate[],
+  limit = 5,
+): Promise<RawCandidate[]> {
+  const selected = new Set(
+    [...candidates]
+      .sort((left, right) => (right.stars ?? 0) - (left.stars ?? 0))
+      .slice(0, limit)
+      .map((candidate) => candidate.id),
+  );
+  return Promise.all(candidates.map((candidate) =>
+    selected.has(candidate.id)
+      ? withLatestGitHubRelease(candidate)
+      : Promise.resolve(candidate)));
+}
+
 export async function searchGitHubResult(
   description: string,
   overrideKeywords?: string[],
@@ -305,9 +349,12 @@ export async function searchGitHubPlanResult(
   }));
   const successes = results.filter((result) => result.ok);
   if (successes.length > 0) {
+    const merged = mergeCandidates(
+      successes.flatMap((result) => result.value),
+    );
     return ok(
       "github",
-      mergeCandidates(successes.flatMap((result) => result.value)),
+      await enrichTopGitHubReleases(merged),
     );
   }
   return err(

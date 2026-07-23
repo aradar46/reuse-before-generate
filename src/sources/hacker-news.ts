@@ -3,7 +3,7 @@ import { encodeUrlComponent, httpGet } from "../http.js";
 import { err, ok, type Result } from "../result.js";
 import { HackerNewsSearchResponse, type HackerNewsSearchHitT } from "../schemas.js";
 
-const USER_AGENT = "reuse-before-generate-mcp/0.7";
+const USER_AGENT = "reuse-before-generate-mcp/0.9";
 const API_URL = "https://hn.algolia.com/api/v1/search";
 
 function itemUrl(id: string): string {

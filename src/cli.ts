@@ -37,6 +37,7 @@ export function parseArgs(argv: string[]): Args {
     ["--outcome", "outcome"],
     ["--synonyms", "synonyms"],
     ["--constraints", "constraints"],
+    ["--priorities", "priorities"],
     ["--artifact-type", "artifactType"],
   ]);
 
@@ -64,6 +65,10 @@ export function parseArgs(argv: string[]): Args {
     .split(",")
     .map((constraint) => constraint.trim())
     .filter(Boolean);
+  const priorities = (values.get("priorities") ?? "")
+    .split(",")
+    .map((priority) => priority.trim())
+    .filter(Boolean);
   const rawArtifactType = values.get("artifactType");
   const artifactType = ARTIFACT_TYPES.find((value) =>
     value === rawArtifactType) as ArtifactType | undefined;
@@ -73,6 +78,7 @@ export function parseArgs(argv: string[]): Args {
       outcome,
       synonyms,
       ...(constraints.length > 0 ? { constraints } : {}),
+      ...(priorities.length > 0 ? { priorities } : {}),
       ...(artifactType ? { artifactType } : {}),
     }
     : undefined;
@@ -102,7 +108,7 @@ async function main(): Promise<void> {
 
   if (!description) {
     console.error(
-      'Usage: npm run check -- "<description>" [--keywords a,b,c] [--category "..."] [--outcome "..."] [--synonyms "..."] [--constraints a,b] [--artifact-type application|service|cli|library]',
+      'Usage: npm run check -- "<description>" [--keywords a,b,c] [--category "..."] [--outcome "..."] [--synonyms "..."] [--constraints a,b] [--priorities primary,secondary] [--artifact-type application|service|cli|library]',
     );
     process.exit(2);
   }
