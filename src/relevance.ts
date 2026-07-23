@@ -19,6 +19,14 @@ const INFORMATIONAL_PATTERN =
 const AWESOME_PATTERN = /\bawesome[- ]|\/awesome[-/]/i;
 const INFORMATIONAL_PATH_PATTERN =
   /\/(?:article|articles|blog|blogs|guide|guides|post|posts|questions?|reviews?)(?:\/|$)/i;
+const APPLICATION_DISTRIBUTION_HOSTS = new Set([
+  "apps.apple.com",
+  "apps.microsoft.com",
+  "f-droid.org",
+  "flathub.org",
+  "play.google.com",
+  "snapcraft.io",
+]);
 
 function normalizedToken(token: string): string {
   if (token.length > 5 && token.endsWith("ies")) {
@@ -95,6 +103,29 @@ function evidenceSources(candidate: RankedCandidate): Set<string> {
   return new Set(candidate.evidence.map((item) => item.source));
 }
 
+function hasApplicationDistributionEvidence(
+  candidate: RankedCandidate,
+): boolean {
+  const urls = [
+    candidate.url,
+    candidate.homepageUrl,
+    ...candidate.evidence.flatMap((item) => [
+      item.sourceUrl,
+      item.destinationUrl,
+    ]),
+  ];
+  return urls.some((raw) => {
+    if (!raw) return false;
+    try {
+      const host = new URL(raw).hostname.toLocaleLowerCase()
+        .replace(/^www\./, "");
+      return APPLICATION_DISTRIBUTION_HOSTS.has(host);
+    } catch {
+      return false;
+    }
+  });
+}
+
 function repositorySubstance(
   candidate: RankedCandidate,
 ): RepositorySubstance {
@@ -131,7 +162,7 @@ function tier(
   score: number,
   penalties: readonly string[],
 ): NonNullable<RankedCandidate["discoveryTier"]> {
-  if (candidate.pool === "competition") return "commercial_competitor";
+  if (candidate.pool === "competition") return "existing_product";
   if (
     penalties.some((penalty) =>
       penalty.includes("component or integration")
@@ -166,6 +197,9 @@ export function rankCandidates<T extends RankedCandidate>(
       const sources = evidenceSources(candidate);
       const substance = repositorySubstance(candidate);
       const constraintEvidence = constraintsFor(candidate, plan.constraints);
+      const distributionEvidence =
+        plan.artifactType === "application"
+        && hasApplicationDistributionEvidence(candidate);
       const uniqueQueries = new Set(
         candidate.evidence.map((item) => item.query.toLocaleLowerCase()),
       ).size;
@@ -202,10 +236,10 @@ export function rankCandidates<T extends RankedCandidate>(
       }
 
       let constraintMatches = 0;
-      for (const constraint of plan.constraints) {
-        if (coverage(constraint, haystack) === 1) {
+      for (const evidence of constraintEvidence) {
+        if (evidence.status === "claimed") {
           constraintMatches += 1;
-          signals.push(`constraint: ${constraint.toLocaleLowerCase()}`);
+          signals.push(`constraint: ${evidence.constraint.toLocaleLowerCase()}`);
         }
       }
       const constraintCoverage = plan.constraints.length === 0
@@ -216,6 +250,9 @@ export function rankCandidates<T extends RankedCandidate>(
         source === "github" || source === "gitlab" || source === "python");
       const packageOnly = sources.size === 1 && sources.has("npm");
       if (repositoryEvidence) signals.push("repository evidence");
+      if (distributionEvidence) {
+        signals.push("application distribution evidence");
+      }
       if (uniqueQueries > 1) signals.push(`${uniqueQueries} query lanes agree`);
       if (sources.size > 1) signals.push(`${sources.size} sources agree`);
 
@@ -290,6 +327,7 @@ export function rankCandidates<T extends RankedCandidate>(
           + laneAgreement
           + sourceAgreement
           + repositoryFit
+          + (distributionEvidence ? 0.12 : 0)
           + popularityContext
           - penalty,
         -1,

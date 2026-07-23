@@ -83,7 +83,7 @@ function structuredEvidence(prompt: string) {
   return JSON.parse(prompt.slice(start + START_MARKER.length, end));
 }
 
-test("rerank prompt groups reuse and competition and renders every evidence item", () => {
+test("rerank prompt groups reuse and competition and renders compact evidence", () => {
   const prompt = buildRerankPrompt("automate widgets", [competition, reuse]);
   const data = structuredEvidence(prompt);
 
@@ -190,7 +190,7 @@ test("rerank prompt contains bounded adversarial fields only as untrusted JSON d
   assert.doesNotMatch(prompt, /\\u0000|\\u001b|\\u0007/);
 });
 
-test("rerank prompt compacts evidence after ranking while preserving both pools", () => {
+test("rerank prompt compacts candidates after ranking while preserving both pools", () => {
   const manyReuse = Array.from({ length: 20 }, (_, index) => ({
     ...reuse,
     id: `reuse-${index + 1}`,
@@ -211,11 +211,34 @@ test("rerank prompt compacts evidence after ranking while preserving both pools"
     [...manyReuse, ...manyCompetition],
   ));
 
-  assert.equal(data["Projects you could reuse"].length, 15);
-  assert.equal(data["Products you would compete with"].length, 10);
+  assert.equal(data["Projects you could reuse"].length, 8);
+  assert.equal(data["Products you would compete with"].length, 8);
   assert.equal(data["Projects you could reuse"][0].id, "reuse-1");
   assert.equal(
     data["Products you would compete with"][0].id,
     "competition-1",
   );
+});
+
+test("rerank prompt limits evidence per candidate while preserving source diversity", () => {
+  const evidence = Array.from({ length: 8 }, (_, index) => ({
+    source: index < 6 ? "github" : "web",
+    sourceId: `evidence-${index + 1}`,
+    sourceUrl: `https://source.example/${index + 1}`,
+    destinationUrl: reuse.url,
+    title: `Evidence ${index + 1}`,
+    snippet: `Snippet ${index + 1}`,
+    query: `query-${index + 1}`,
+    rank: index + 1,
+  }));
+  const candidate = { ...reuse, evidence };
+
+  const data = structuredEvidence(buildRerankPrompt(
+    "automate widgets",
+    [candidate],
+  ));
+  const compact = data["Projects you could reuse"][0].evidence;
+
+  assert.equal(compact.length, 3);
+  assert.ok(compact.some((item: { source: string }) => item.source === "web"));
 });

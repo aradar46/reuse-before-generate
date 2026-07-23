@@ -69,5 +69,5 @@ export interface RankedCandidate extends RawCandidate {
     | "strong_reuse"
     | "promising_niche"
     | "adjacent_building_block"
-    | "commercial_competitor";
+    | "existing_product";
 }

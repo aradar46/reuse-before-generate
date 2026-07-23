@@ -207,24 +207,49 @@ function repositoryReferenceFromContent(
   productIdentity: string,
 ): RepositoryReference | undefined {
   if (!content) return undefined;
-  const urls = content.match(
+  const matches = [...content.matchAll(
     /https?:\/\/(?:www\.)?(?:github\.com|gitlab\.com)\/[^\s)\]>"']+/gi,
-  ) ?? [];
-  const references = new Map<string, RepositoryReference>();
-  for (const url of urls) {
-    const reference = repositoryReference(url);
-    if (reference) references.set(reference.url, reference);
+  )];
+  const references = new Map<
+    string,
+    { reference: RepositoryReference; contextScore: number }
+  >();
+  for (const match of matches) {
+    const reference = repositoryReference(match[0]);
+    if (!reference) continue;
+    const index = match.index ?? 0;
+    const context = content.slice(
+      Math.max(0, index - 100),
+      Math.min(content.length, index + match[0].length + 60),
+    );
+    const before = content.slice(Math.max(0, index - 50), index);
+    let contextScore = 0;
+    if (/(?:source(?:\s+code)?|repository|repo)\s*[:=\]()>-]*\s*$/i.test(before)) {
+      contextScore += 6;
+    }
+    if (/\b(?:canonical|official)\b/i.test(context)) contextScore += 3;
+    if (/\bmirror\b/i.test(context)) contextScore -= 5;
+    if (/\b(?:build metadata|fdroiddata|site template|theme)\b/i.test(context)) {
+      contextScore -= 4;
+    }
+    const current = references.get(reference.url);
+    if (!current || contextScore > current.contextScore) {
+      references.set(reference.url, { reference, contextScore });
+    }
   }
-  if (references.size === 1) return [...references.values()][0];
+  if (references.size === 1) return [...references.values()][0]?.reference;
   const productTokens = identityTokens(productIdentity);
   const ranked = [...references.values()]
-    .map((reference) => ({
+    .map(({ reference, contextScore }) => ({
       reference,
+      contextScore,
       overlap: [...identityTokens(reference.url)]
         .filter((token) => productTokens.has(token)).length,
     }))
-    .sort((left, right) => right.overlap - left.overlap);
-  return (ranked[0]?.overlap ?? 0) > 0
+    .sort((left, right) =>
+      (right.contextScore + right.overlap)
+      - (left.contextScore + left.overlap));
+  return ((ranked[0]?.contextScore ?? 0) > 0 || (ranked[0]?.overlap ?? 0) > 0)
     ? ranked[0]?.reference
     : undefined;
 }
@@ -250,6 +275,35 @@ function identityTokens(value: string): Set<string> {
 
 function compactConstraints(plan: QueryPlan): string {
   return plan.constraints.slice(0, 3).join(" ");
+}
+
+interface DiscoveryQuery {
+  query: string;
+  includeRawContent: boolean;
+}
+
+function applicationDistributionQueries(plan: QueryPlan): DiscoveryQuery[] {
+  if (plan.artifactType !== "application") return [];
+  const text = [
+    plan.formulations.category,
+    plan.formulations.outcome,
+    plan.formulations.synonyms ?? "",
+    ...plan.constraints,
+  ].join(" ").toLocaleLowerCase();
+  const queries: DiscoveryQuery[] = [];
+  if (/\b(?:android|f-droid|google play)\b/.test(text)) {
+    queries.push({
+      query: `${plan.formulations.category} Android F-Droid app`,
+      includeRawContent: true,
+    });
+  }
+  if (/\b(?:ios|iphone|ipad|app store)\b/.test(text)) {
+    queries.push({
+      query: `${plan.formulations.synonyms ?? plan.formulations.category} iOS App Store app`,
+      includeRawContent: true,
+    });
+  }
+  return queries;
 }
 
 function discoveryQueries(plan: QueryPlan): {
@@ -298,10 +352,20 @@ export async function searchTavilyDiscoveryResult(
   }
 
   const { reuse: reuseQuery, product: productQuery } = discoveryQueries(plan);
-  const results = await Promise.all([
-    searchTavilyResult(reuseQuery, 5),
-    searchTavilyResult(productQuery, 5, { includeRawContent: true }),
-  ]);
+  const queries: DiscoveryQuery[] = [
+    { query: reuseQuery, includeRawContent: true },
+    { query: productQuery, includeRawContent: true },
+    ...applicationDistributionQueries(plan),
+  ];
+  const uniqueQueries = [...new Map(
+    queries.map((query) => [query.query.toLocaleLowerCase(), query]),
+  ).values()];
+  const results = await Promise.all(uniqueQueries.map((query) =>
+    searchTavilyResult(
+      query.query,
+      5,
+      { includeRawContent: query.includeRawContent },
+    )));
   const successes = results.filter((result) => result.ok);
   if (successes.length > 0) {
     return ok(

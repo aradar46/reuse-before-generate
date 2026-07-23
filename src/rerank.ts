@@ -9,11 +9,13 @@
 // (Claude Code, Claude Desktop, etc.) does the semantic judgment itself as
 // part of its own response, using whatever session is already running.
 
+import type { Evidence } from "./candidate.js";
 import type { PreparedCandidate } from "./verify.js";
 
 const MAX_UNTRUSTED_FIELD_CHARS = 500;
-const MAX_REUSE_CANDIDATES = 15;
-const MAX_COMPETITION_CANDIDATES = 10;
+const MAX_REUSE_CANDIDATES = 8;
+const MAX_COMPETITION_CANDIDATES = 8;
+const MAX_EVIDENCE_PER_CANDIDATE = 3;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/g;
 
 function untrusted(value: string): string {
@@ -26,6 +28,34 @@ function traction(candidate: PreparedCandidate): string {
   if (candidate.traction) return untrusted(candidate.traction);
   if (candidate.stars !== undefined) return `${candidate.stars} stars`;
   return "unknown";
+}
+
+function compactEvidence(evidence: readonly Evidence[]): Evidence[] {
+  const ordered = [...evidence].sort((left, right) =>
+    left.rank - right.rank
+    || left.source.localeCompare(right.source));
+  const selected: Evidence[] = [];
+  const selectedKeys = new Set<string>();
+  const sources = new Set<string>();
+  const key = (item: Evidence): string =>
+    `${item.source}\u0000${item.sourceId}\u0000${item.query}`;
+  const add = (item: Evidence): void => {
+    const identity = key(item);
+    if (selectedKeys.has(identity)) return;
+    selected.push(item);
+    selectedKeys.add(identity);
+    sources.add(item.source);
+  };
+
+  for (const item of ordered) {
+    if (!sources.has(item.source)) add(item);
+    if (selected.length >= MAX_EVIDENCE_PER_CANDIDATE) return selected;
+  }
+  for (const item of ordered) {
+    add(item);
+    if (selected.length >= MAX_EVIDENCE_PER_CANDIDATE) return selected;
+  }
+  return selected;
 }
 
 function structuredCandidate(candidate: PreparedCandidate) {
@@ -73,7 +103,7 @@ function structuredCandidate(candidate: PreparedCandidate) {
       ? { rankingPenalties: candidate.rankingPenalties.map(untrusted) }
       : {}),
     "health/limits": health,
-    evidence: candidate.evidence.map((item) => ({
+    evidence: compactEvidence(candidate.evidence).map((item) => ({
       source: untrusted(item.source),
       sourceId: untrusted(item.sourceId),
       sourceUrl: untrusted(item.sourceUrl),

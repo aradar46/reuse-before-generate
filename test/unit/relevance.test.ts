@@ -132,6 +132,100 @@ test("constraint coverage can lift a fitting niche project above a popular gener
   assert.ok(prepared[0]?.rankingSignals?.includes("constraint: keyboard driven"));
 });
 
+test("ranking signals use the same per-evidence constraint claims shown to callers", async () => {
+  const plan = buildQueryPlan("Private local application", [], {
+    category: "private journal",
+    outcome: "record personal notes",
+    synonyms: "diary",
+    constraints: ["offline", "local-only data"],
+    artifactType: "application",
+  });
+  const raw = candidate(
+    "github",
+    "quiet-journal",
+    "An offline private journal with local-only data",
+    ["private journal"],
+  );
+  raw.evidence = raw.evidence.map((item) => ({
+    ...item,
+    snippet: "A private journal for recording personal notes",
+  }));
+
+  const [prepared] = await prepareCandidates([raw], plan);
+
+  assert.deepEqual(prepared?.constraintEvidence, [
+    { constraint: "offline", status: "unknown", sources: [] },
+    { constraint: "local-only data", status: "unknown", sources: [] },
+  ]);
+  assert.equal(
+    prepared?.rankingSignals?.some((signal) => signal.startsWith("constraint:")),
+    false,
+  );
+});
+
+test("application distribution evidence is exposed as a maturity signal", async () => {
+  const plan = buildQueryPlan("Install a private journal", [], {
+    category: "private journal",
+    outcome: "record personal notes",
+    synonyms: "diary",
+    artifactType: "application",
+  });
+  const raw = candidate(
+    "github",
+    "quiet-journal",
+    "A private journal for personal notes",
+    ["private journal"],
+  );
+  raw.homepageUrl = "https://f-droid.org/packages/org.example.quietjournal";
+  raw.evidence.push({
+    source: "web",
+    sourceId: raw.homepageUrl,
+    sourceUrl: raw.homepageUrl,
+    destinationUrl: raw.homepageUrl,
+    title: "Quiet Journal",
+    snippet: "Install Quiet Journal",
+    query: "private journal Android F-Droid app",
+    rank: 1,
+  });
+
+  const [prepared] = await prepareCandidates([raw], plan);
+
+  assert.ok(prepared?.rankingSignals?.includes(
+    "application distribution evidence",
+  ));
+});
+
+test("competition uses a neutral existing-product tier", async () => {
+  const plan = buildQueryPlan("Install a private journal", [], {
+    category: "private journal",
+    outcome: "record personal notes",
+    synonyms: "diary",
+    artifactType: "application",
+  });
+  const raw: RawCandidate = {
+    source: "web",
+    id: "quiet-journal",
+    name: "Quiet Journal",
+    url: "https://quiet.example",
+    description: "A private journal application",
+    kind: "unknown",
+    evidence: [{
+      source: "web",
+      sourceId: "quiet-journal",
+      sourceUrl: "https://quiet.example",
+      destinationUrl: "https://quiet.example",
+      title: "Quiet Journal",
+      snippet: "A private journal application",
+      query: "private journal official app",
+      rank: 1,
+    }],
+  };
+
+  const [prepared] = await prepareCandidates([raw], plan);
+
+  assert.equal(prepared?.discoveryTier, "existing_product");
+});
+
 test("informational pages and component-shaped results expose transparent penalties", async () => {
   const plan = buildQueryPlan("Personal CRM", [], {
     category: "personal CRM",

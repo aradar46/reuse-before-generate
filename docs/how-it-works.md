@@ -17,7 +17,9 @@ The technical detail behind the one-paragraph summary in the README.
    outcome, and `stars:0..3`); GitLab gets category and outcome; Show HN gets
    at most three; and optional Tavily web discovery gets separate
    reusable-project and existing-product queries shaped by artifact type and
-   up to three must-have constraints. npm gets at most two unique
+   up to three must-have constraints. Application plans that explicitly
+   mention Android or iOS add a matching F-Droid or App Store distribution
+   query, for a maximum of four bounded Tavily requests. npm gets at most two unique
    formulations for library and CLI requests, and is skipped for applications
    and services. npm uses category and synonym formulations, not the free-form
    outcome. An explicit Python plan adds one
@@ -32,16 +34,17 @@ The technical detail behind the one-paragraph summary in the README.
    reciprocal-rank fusion: `retrieval score = Σ 1 / (60 + rank)`. A
    source/query contributes only its best valid rank.
    GitHub homepage metadata joins official product pages to their repository
-   identity. Tavily product-page content is also inspected for matching
-   GitHub or GitLab source links, while unrelated repository links are
-   ignored when they do not match the product identity. A project with direct
+   identity. Tavily page content is also inspected for GitHub or GitLab
+   source links. Explicit source/repository labels and canonical/official
+   context outrank mirrors, build metadata, and site-template links. A project with direct
    market evidence can appear in both pools: reusable code and a product the
    proposal would compete with.
 
 4. **Separate and verify** (`src/verify.ts`) — repository and package
    evidence goes to **Projects you could reuse** and must be unarchived with
-   activity in the last year. Commercial and unknown product evidence goes
-   to **Products you would compete with** and is not subjected to repository
+   activity in the last year. Existing product evidence—including
+   open-source products that also appear in the reuse pool—goes to
+   **Products you would compete with** and is not subjected to repository
    maintenance checks it cannot satisfy. These are evidence pools, not a
    semantic verdict that the proposal is duplicated.
 
@@ -55,9 +58,12 @@ The technical detail behind the one-paragraph summary in the README.
    minimal application, service, and CLI repositories are demoted rather than
    treated as reusable architecture. Article-like web pages move behind
    direct product evidence. The evidence passed to the
-   caller is capped at 15 reuse and 10 competition candidates after ranking.
-   It returns repository substance and claimed/unknown constraint evidence
-   with the ranking signals. The calling agent judges functional overlap,
+   caller is capped at 8 reuse and 8 competition candidates after ranking,
+   with at most 3 source-diverse evidence items per candidate. It returns
+   repository substance, application distribution evidence, and
+   claimed/unknown constraint evidence with the ranking signals. Constraint
+   scoring uses those same per-evidence claims rather than a second aggregate
+   matcher. The calling agent judges functional overlap,
    reuse readiness, maturity, and confidence separately rather than producing
    a single numeric score. Coverage separately names searched, unavailable,
    and failed sources.
@@ -159,7 +165,7 @@ the rest exist for specific situations.
 | Variable | Effect |
 |---|---|
 | `GITHUB_TOKEN` | Raises GitHub's search rate limit from 10/min to 30/min. Worth setting. |
-| `TAVILY_API_KEY` | Enables two bounded Tavily web searches so reusable projects and competing products outside developer indexes can surface separately. |
+| `TAVILY_API_KEY` | Enables two bounded Tavily web searches so reusable projects and competing products outside developer indexes can surface separately, plus up to two application distribution lanes when Android or iOS is explicit. |
 | `REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1` | Stops writing the local usage log entirely. |
 | `REUSE_BEFORE_GENERATE_TELEMETRY_URL` | POSTs each event to a collector you run. Nothing is bundled or defaulted; without this, nothing leaves the machine. |
 | `REUSE_BEFORE_GENERATE_SHOW_ENERGY=1` | Appends an estimated "Wh saved" line to the tool output. Off by default, deliberately: it is an order-of-magnitude guess, and it increments as soon as a maintained candidate is found — before the agent has judged whether that candidate is actually relevant. It is not a measurement. |

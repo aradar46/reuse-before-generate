@@ -25,7 +25,7 @@ and it looks first. The response deliberately has two sections:
 
 - **Projects you could reuse** — maintained open-source repositories and
   packages that may be worth adopting or extending.
-- **Products you would compete with** — commercial or product evidence that
+- **Products you would compete with** — existing product evidence that
   may validate the market, change the positioning, or save a duplicate build.
 
 Those are retrieval pools, not verdicts. The calling agent compares the
@@ -76,20 +76,26 @@ npm-only packages returned for application requests. For library requests,
 npm remains first-class evidence. The final shortlist deliberately reserves
 room for both an established, relevant project and a promising niche project;
 raw popularity alone cannot earn the authority slot. Official homepages also
-link open-source projects to their commercial product identity, so one entity
+link open-source projects to their existing product identity, so one entity
 can correctly appear in both sections. Returned evidence is capped after
 ranking to keep the agent context focused. Tavily formulations adapt to the
 artifact type and must-have constraints instead of treating every request as
-self-hosted software. Recognized source links in Tavily page content can join
-an official product page to its GitHub or GitLab repository.
+self-hosted software. Application plans with explicit Android or iOS intent
+also receive bounded F-Droid or App Store discovery lanes. Recognized source
+links in Tavily page content can join an official product page to its GitHub
+or GitLab repository, preferring links explicitly labelled as source or the
+official repository over mirrors and site templates.
 
 Repository size, forks, and constraint evidence are returned as confidence
-signals. A very small application repository is marked
+signals. Application-store evidence is surfaced as a maturity signal. A very
+small application repository is marked
 `minimal_repository` and demoted rather than presented as an implemented
 foundation. A larger repository is only marked `substantial_repository`;
 size alone does not verify implementation quality. Constraint matches are
-explicitly `claimed` or `unknown`; retrieved claims are not represented as
-independently verified facts. The
+explicitly `claimed` or `unknown`; the same per-evidence claims drive both
+ranking and the evidence shown to the caller, so those fields cannot
+contradict one another. Retrieved claims are not represented as independently
+verified facts. The
 calling agent reports functional overlap, reuse readiness, product maturity,
 constraint evidence, and confidence separately instead of collapsing them
 into one numeric score.
@@ -191,8 +197,10 @@ Details, including where it still fails, are in
 The optional settings are **`GITHUB_TOKEN`** and **`TAVILY_API_KEY`**.
 GitHub authentication improves repository-search throughput. Tavily adds two
 bounded web queries per check—one for reusable implementations and one for
-existing products; without it, coverage reports web as unavailable rather
-than failed. Set either or both in the `env` block shown in
+existing products—and up to two additional platform-distribution queries when
+an application request explicitly mentions Android or iOS. Without it,
+coverage reports web as unavailable rather than failed. Set either or both in
+the `env` block shown in
 [Install](#install).
 
 It also keeps a local count of its own usage in

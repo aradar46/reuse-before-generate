@@ -165,7 +165,7 @@ test("Tavily preserves nested GitLab namespaces when fetching repository activit
   assert.equal(result.value[0]?.pushedAt, "2026-07-22T12:00:00Z");
 });
 
-test("Tavily discovery uses separate bounded reuse and product formulations", async () => {
+test("Tavily discovery adds platform distribution lanes for applications", async () => {
   process.env.TAVILY_API_KEY = "tvly-test-secret";
   const bodies: Array<Record<string, unknown>> = [];
   setFetcher(async (url, init) => {
@@ -192,8 +192,10 @@ test("Tavily discovery uses separate bounded reuse and product formulations", as
       body.include_raw_content,
     ]),
     [
-      ["private period tracker Android iOS offline open source app", 5, false],
+      ["private period tracker Android iOS offline open source app", 5, true],
       ["menstrual cycle tracker Android iOS offline official app", 5, true],
+      ["private period tracker Android F-Droid app", 5, true],
+      ["menstrual cycle tracker iOS App Store app", 5, true],
     ],
   );
 });
@@ -244,4 +246,62 @@ test("Tavily links an official product page to source found in raw content", asy
   assert.equal(result.value[0]?.homepageUrl, "https://cycle.example");
   assert.equal(result.value[0]?.kind, "open_source");
   assert.equal(result.value[0]?.repositorySizeKb, 2_500);
+});
+
+test("Tavily prefers an explicitly labelled canonical source over a named mirror", async () => {
+  process.env.TAVILY_API_KEY = "tvly-test-secret";
+  setFetcher(async (url, init) => {
+    if (String(url) === "https://api.gitlab.com/never-used") {
+      return Response.json({});
+    }
+    if (String(url).startsWith("https://gitlab.com/api/v4/projects/")) {
+      return Response.json({
+        last_activity_at: "2026-07-22T12:00:00Z",
+        archived: false,
+        star_count: 120,
+        forks_count: 14,
+      });
+    }
+    if (String(url).startsWith("https://api.github.com/repos/")) {
+      return Response.json({
+        pushed_at: "2026-07-22T12:00:00Z",
+        archived: false,
+        stargazers_count: 2,
+        size: 50,
+        forks_count: 0,
+      });
+    }
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.include_raw_content === true) {
+      return Response.json({
+        results: [{
+          title: "Quiet Journal",
+          url: "https://quiet.example",
+          content: "Private journal application.",
+          raw_content:
+            "Unofficial mirror: https://github.com/random/quiet-journal\n" +
+            "Source Code: https://gitlab.com/collective/mobile-client",
+          score: 0.9,
+        }],
+      });
+    }
+    return Response.json({ results: [] });
+  });
+
+  const result = await searchTavilyDiscoveryResult({
+    formulations: {
+      category: "private journal",
+      outcome: "record notes privately",
+      synonyms: "quiet journal",
+    },
+    constraints: [],
+    artifactType: "application",
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(
+    result.value[0]?.repositoryUrl,
+    "https://gitlab.com/collective/mobile-client",
+  );
 });
