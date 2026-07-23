@@ -2,7 +2,18 @@
 // returning failures over throwing them: one dead upstream (npm 503, GitHub
 // rate limit) must degrade that source only, never the whole tool call.
 
-export type Source = "github" | "npm" | "python";
+export type Source =
+  | "github"
+  | "npm"
+  | "python"
+  | "gitlab"
+  | "hackernews"
+  | "crates"
+  | "rubygems"
+  | "packagist"
+  | "maven"
+  | "producthunt"
+  | "web";
 
 export type Result<T> =
   | { ok: true; source: Source; value: T }

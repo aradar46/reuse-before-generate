@@ -19,3 +19,8 @@ test("err() carries source and reason and is not ok", () => {
     assert.equal(r.reason, "HTTP 503");
   }
 });
+
+test("results support the expanded discovery sources", () => {
+  const r = ok("gitlab", "found");
+  assert.equal(r.source, "gitlab");
+});
