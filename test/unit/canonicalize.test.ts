@@ -35,6 +35,13 @@ test("canonicalizeUrl removes tracking, trailing slashes, and GitHub .git", () =
   );
 });
 
+test("canonicalizeUrl removes a terminal .git from GitLab repository URLs", () => {
+  assert.equal(
+    canonicalizeUrl("https://gitlab.com/acme/widget.git/"),
+    "https://gitlab.com/acme/widget",
+  );
+});
+
 test("canonicalizeUrl safely returns a trimmed invalid URL", () => {
   assert.equal(canonicalizeUrl("  not a url  "), "not a url");
 });
@@ -68,6 +75,42 @@ test("mergeCandidates joins duplicate candidates and deduplicates evidence", () 
           rank: 1,
         },
       ],
+    }),
+  ]);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].evidence.length, 2);
+});
+
+test("mergeCandidates uses candidate.url when no repository URL is present", () => {
+  const merged = mergeCandidates([
+    candidate({
+      url: "https://example.com/widget",
+      evidence: [{
+        source: "github",
+        sourceId: "acme/widget",
+        sourceUrl: "https://github.com/acme/widget",
+        destinationUrl: "https://docs.example.com/widget",
+        title: "Widget",
+        snippet: "first destination",
+        query: "widget",
+        rank: 1,
+      }],
+    }),
+    candidate({
+      source: "web",
+      id: "widget-site",
+      url: "https://example.com/widget",
+      evidence: [{
+        source: "web",
+        sourceId: "widget-site",
+        sourceUrl: "https://search.example.com/widget",
+        destinationUrl: "https://www.example.com/pricing",
+        title: "Widget site",
+        snippet: "second destination",
+        query: "widget",
+        rank: 1,
+      }],
     }),
   ]);
 

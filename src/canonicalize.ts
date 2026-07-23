@@ -13,9 +13,7 @@ export function canonicalizeUrl(raw: string): string {
       if (TRACKING_PARAMETER.test(key)) url.searchParams.delete(key);
     }
     if (url.pathname.length > 1) url.pathname = url.pathname.replace(/\/+$/, "");
-    if (url.hostname === "github.com") {
-      url.pathname = url.pathname.replace(/\.git$/i, "");
-    }
+    url.pathname = url.pathname.replace(/\.git$/i, "");
     return url.toString().replace(/\/$/, "");
   } catch {
     return trimmed;
@@ -47,7 +45,6 @@ export function classifyCandidate(candidate: RawCandidate): CandidateKind {
 
 function candidateUrl(candidate: RawCandidate): string {
   return candidate.repositoryUrl
-    ?? candidate.evidence[0]?.destinationUrl
     ?? candidate.url;
 }
 

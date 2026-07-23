@@ -4,9 +4,8 @@ import type { RawCandidate } from "./candidate.js";
 
 export const RRF_K = 60;
 
-function destinationUrl(candidate: RawCandidate): string {
+function candidateUrl(candidate: RawCandidate): string {
   return candidate.repositoryUrl
-    ?? candidate.evidence[0]?.destinationUrl
     ?? candidate.url;
 }
 
@@ -27,7 +26,7 @@ function rrfScore(evidence: readonly Evidence[]): number {
 export function fuseCandidates(candidates: readonly RawCandidate[]): RankedCandidate[] {
   return mergeCandidates(candidates)
     .map((candidate) => {
-      const canonicalUrl = canonicalizeUrl(destinationUrl(candidate));
+      const canonicalUrl = canonicalizeUrl(candidateUrl(candidate));
       return {
         ...candidate,
         canonicalUrl,
