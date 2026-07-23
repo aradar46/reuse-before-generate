@@ -62,7 +62,6 @@ export const GitLabSearchResponse = z.array(
     description: z.string().nullable(),
     star_count: z.number(),
     last_activity_at: z.string(),
-    archived: z.boolean(),
   }),
 );
 

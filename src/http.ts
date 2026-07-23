@@ -37,6 +37,32 @@ export function resetFetcher(): void {
 
 export const DEFAULT_TIMEOUT_MS = 8000;
 
+/**
+ * Node 18 has no String.prototype.toWellFormed(), and encodeURIComponent
+ * throws on an unpaired UTF-16 surrogate. Replace only malformed code units;
+ * valid surrogate pairs (including emoji) pass through unchanged.
+ */
+export function encodeUrlComponent(value: string): string {
+  let wellFormed = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        wellFormed += value[index] + value[index + 1];
+        index += 1;
+      } else {
+        wellFormed += "\ufffd";
+      }
+    } else if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+      wellFormed += "\ufffd";
+    } else {
+      wellFormed += value[index];
+    }
+  }
+  return encodeURIComponent(wellFormed);
+}
+
 export function httpGet(
   url: string,
   headers: Record<string, string>,

@@ -1,5 +1,5 @@
 import type { RawCandidate } from "../candidate.js";
-import { httpGet } from "../http.js";
+import { encodeUrlComponent, httpGet } from "../http.js";
 import { err, ok, type Result } from "../result.js";
 import { HackerNewsSearchResponse, type HackerNewsSearchHitT } from "../schemas.js";
 
@@ -7,7 +7,7 @@ const USER_AGENT = "reuse-before-generate-mcp/0.3";
 const API_URL = "https://hn.algolia.com/api/v1/search";
 
 function itemUrl(id: string): string {
-  return `https://news.ycombinator.com/item?id=${encodeURIComponent(id)}`;
+  return `https://news.ycombinator.com/item?id=${encodeUrlComponent(id)}`;
 }
 
 function toCandidate(hit: HackerNewsSearchHitT, query: string, rank: number): RawCandidate {
@@ -44,10 +44,10 @@ export async function searchShowHnResult(
   query: string,
   limit = 10,
 ): Promise<Result<RawCandidate[]>> {
-  const url =
-    `${API_URL}?query=${encodeURIComponent(query)}` +
-    `&tags=show_hn&hitsPerPage=${limit}`;
   try {
+    const url =
+      `${API_URL}?query=${encodeUrlComponent(query)}` +
+      `&tags=show_hn&hitsPerPage=${limit}`;
     const response = await httpGet(url, { "User-Agent": USER_AGENT });
     if (!response.ok) return err("hackernews", `HTTP ${response.status}`);
     const parsed = HackerNewsSearchResponse.safeParse(await response.json());

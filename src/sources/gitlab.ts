@@ -1,5 +1,5 @@
 import type { RawCandidate } from "../candidate.js";
-import { httpGet } from "../http.js";
+import { encodeUrlComponent, httpGet } from "../http.js";
 import { err, ok, type Result } from "../result.js";
 import { GitLabSearchResponse, type GitLabSearchItemT } from "../schemas.js";
 
@@ -17,7 +17,9 @@ function toCandidate(item: GitLabSearchItemT, query: string, rank: number): RawC
     description,
     stars: item.star_count,
     pushedAt: item.last_activity_at,
-    archived: item.archived,
+    // The request filters archived=false, so this is an upstream-enforced
+    // invariant rather than a value invented from the list response.
+    archived: false,
     kind: "open_source",
     repositoryUrl: item.web_url,
     evidence: [
@@ -40,10 +42,10 @@ export async function searchGitLabResult(
   query: string,
   limit = 10,
 ): Promise<Result<RawCandidate[]>> {
-  const url =
-    `${API_URL}?search=${encodeURIComponent(query)}` +
-    `&per_page=${limit}&order_by=last_activity_at`;
   try {
+    const url =
+      `${API_URL}?search=${encodeUrlComponent(query)}` +
+      `&archived=false&per_page=${limit}&order_by=last_activity_at`;
     const response = await httpGet(url, { "User-Agent": USER_AGENT });
     if (!response.ok) return err("gitlab", `HTTP ${response.status}`);
     const parsed = GitLabSearchResponse.safeParse(await response.json());

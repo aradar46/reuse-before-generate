@@ -260,3 +260,24 @@ test("Maven rejects an out-of-range timestamp without throwing", async () => {
     { ok: false, source: "maven", reason: "unexpected response shape" },
   ]);
 });
+
+test("each registry attributes malformed Unicode queries instead of throwing", async (t) => {
+  const cases = [
+    ["rust", "crates"],
+    ["ruby", "rubygems"],
+    ["php", "packagist"],
+    ["jvm", "maven"],
+  ] as const;
+  for (const [ecosystem, source] of cases) {
+    await t.test(source, async () => {
+      setFetcher(async () => {
+        throw new Error("offline");
+      });
+      for (const query of ["\ud800", "\udc00"]) {
+        assert.deepEqual(await searchRegistryResults(ecosystem, query), [
+          { ok: false, source, reason: "offline" },
+        ]);
+      }
+    });
+  }
+});

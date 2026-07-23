@@ -95,14 +95,13 @@ test("GitLabSearchResponse accepts nullable project descriptions", () => {
         description: null,
         star_count: 2,
         last_activity_at: "2026-07-20T00:00:00Z",
-        archived: false,
       },
     ]).success,
     true,
   );
 });
 
-test("GitLabSearchResponse requires real archive state", () => {
+test("GitLabSearchResponse accepts captured list responses without archived", () => {
   const parsed = GitLabSearchResponse.safeParse([
     {
       id: 1,
@@ -113,7 +112,7 @@ test("GitLabSearchResponse requires real archive state", () => {
       last_activity_at: "2026-07-20T00:00:00Z",
     },
   ]);
-  assert.equal(parsed.success, false);
+  assert.equal(parsed.success, true);
 });
 
 test("HackerNewsSearchResponse accepts optional nullable launch fields", () => {

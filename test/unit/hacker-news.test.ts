@@ -114,3 +114,16 @@ test("Show HN isolates HTTP and thrown network failures", async (t) => {
     });
   });
 });
+
+test("Show HN attributes lone surrogate queries instead of throwing", async () => {
+  setFetcher(async () => {
+    throw new Error("offline");
+  });
+  for (const query of ["\ud800", "\udc00"]) {
+    assert.deepEqual(await searchShowHnResult(query), {
+      ok: false,
+      source: "hackernews",
+      reason: "offline",
+    });
+  }
+});

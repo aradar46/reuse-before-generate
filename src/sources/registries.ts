@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Ecosystem, RawCandidate } from "../candidate.js";
-import { httpGet } from "../http.js";
+import { encodeUrlComponent, httpGet } from "../http.js";
 import { err, ok, type Result, type Source } from "../result.js";
 
 const USER_AGENT = "reuse-before-generate-mcp/0.3";
@@ -95,14 +95,14 @@ export async function searchCratesResult(
   limit = 10,
 ): Promise<Result<RawCandidate[]>> {
   const url =
-    `https://crates.io/api/v1/crates?q=${encodeURIComponent(query)}` +
+    `https://crates.io/api/v1/crates?q=${encodeUrlComponent(query)}` +
     `&per_page=${limit}`;
   const result = await validatedJson("crates", url, CratesSearchResponse);
   if (!result.ok) return result;
   return ok(
     "crates",
     result.value.crates.map((crate, index) => {
-      const packageUrl = `https://crates.io/crates/${encodeURIComponent(crate.id)}`;
+      const packageUrl = `https://crates.io/crates/${encodeUrlComponent(crate.id)}`;
       const destinationUrl = crate.repository || packageUrl;
       const description = crate.description ?? "";
       return {
@@ -139,7 +139,7 @@ export async function searchRubyGemsResult(
   limit = 10,
 ): Promise<Result<RawCandidate[]>> {
   const url =
-    `https://rubygems.org/api/v1/search.json?query=${encodeURIComponent(query)}`;
+    `https://rubygems.org/api/v1/search.json?query=${encodeUrlComponent(query)}`;
   const result = await validatedJson("rubygems", url, RubyGemsSearchResponse);
   if (!result.ok) return result;
   return ok(
@@ -181,7 +181,7 @@ export async function searchRubyGemsResult(
 
 async function packagistActivity(name: string): Promise<string | undefined> {
   const url =
-    `https://packagist.org/packages/${encodeURIComponent(name)}.json`;
+    `https://packagist.org/packages/${encodeUrlComponent(name)}.json`;
   const result = await validatedJson("packagist", url, PackagistDetailResponse);
   if (!result.ok) return undefined;
   let latest: { value: string; time: number } | undefined;
@@ -198,7 +198,7 @@ export async function searchPackagistResult(
   query: string,
   limit = 10,
 ): Promise<Result<RawCandidate[]>> {
-  const url = `https://packagist.org/search.json?q=${encodeURIComponent(query)}`;
+  const url = `https://packagist.org/search.json?q=${encodeUrlComponent(query)}`;
   const result = await validatedJson("packagist", url, PackagistSearchResponse);
   if (!result.ok) return result;
   const packages = result.value.results.slice(0, limit);
@@ -245,7 +245,7 @@ export async function searchMavenResult(
   limit = 10,
 ): Promise<Result<RawCandidate[]>> {
   const url =
-    `https://search.maven.org/solrsearch/select?q=${encodeURIComponent(query)}` +
+    `https://search.maven.org/solrsearch/select?q=${encodeUrlComponent(query)}` +
     `&rows=${limit}&wt=json`;
   const result = await validatedJson("maven", url, MavenSearchResponse);
   if (!result.ok) return result;
@@ -253,8 +253,8 @@ export async function searchMavenResult(
     "maven",
     result.value.response.docs.map((doc, index) => {
       const artifactUrl =
-        `https://central.sonatype.com/artifact/${encodeURIComponent(doc.g)}` +
-        `/${encodeURIComponent(doc.a)}/${encodeURIComponent(doc.latestVersion)}`;
+        `https://central.sonatype.com/artifact/${encodeUrlComponent(doc.g)}` +
+        `/${encodeUrlComponent(doc.a)}/${encodeUrlComponent(doc.latestVersion)}`;
       const pushedAt = new Date(doc.timestamp).toISOString();
       const description = `${doc.id} ${doc.latestVersion}`;
       return {

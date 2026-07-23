@@ -152,3 +152,20 @@ test("web search fails as a unit when either request fails or challenges", async
     assert.equal(calls, 2);
   });
 });
+
+test("web search attributes malformed Unicode queries instead of throwing", async () => {
+  let calls = 0;
+  setFetcher(async () => {
+    calls += 1;
+    return new Response("", { status: 503 });
+  });
+
+  for (const query of ["\ud800", "\udc00"]) {
+    assert.deepEqual(await searchWebResult(query), {
+      ok: false,
+      source: "web",
+      reason: "HTTP 503",
+    });
+  }
+  assert.equal(calls, 4);
+});
