@@ -53,13 +53,13 @@ function evidenceKey(evidence: Evidence): string {
 }
 
 function dedupeEvidence(evidence: readonly Evidence[]): Evidence[] {
-  const seen = new Set<string>();
-  return evidence.filter((item) => {
+  const best = new Map<string, Evidence>();
+  for (const item of evidence) {
     const key = evidenceKey(item);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    const current = best.get(key);
+    if (!current || item.rank < current.rank) best.set(key, item);
+  }
+  return [...best.values()];
 }
 
 function richerNumber(left: number | undefined, right: number | undefined): number | undefined {
@@ -95,7 +95,7 @@ export function mergeCandidates(candidates: readonly RawCandidate[]): RawCandida
       repositoryUrl: current.repositoryUrl ?? candidate.repositoryUrl,
       packageUrl: current.packageUrl ?? candidate.packageUrl,
       stars: richerNumber(current.stars, candidate.stars),
-      traction: richerNumber(current.traction, candidate.traction),
+      traction: current.traction ?? candidate.traction,
       pushedAt: current.pushedAt ?? candidate.pushedAt,
       archived: current.archived ?? candidate.archived,
       evidence: dedupeEvidence([...current.evidence, ...candidate.evidence]),

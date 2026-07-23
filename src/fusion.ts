@@ -12,7 +12,7 @@ function candidateUrl(candidate: RawCandidate): string {
 function rrfScore(evidence: readonly Evidence[]): number {
   const bestRanks = new Map<string, number>();
   for (const item of evidence) {
-    if (!Number.isFinite(item.rank) || item.rank < 0) continue;
+    if (!Number.isFinite(item.rank) || item.rank <= 0) continue;
     const key = `${item.source}\u0000${item.query}`;
     const previous = bestRanks.get(key);
     if (previous === undefined || item.rank < previous) bestRanks.set(key, item.rank);

@@ -118,6 +118,38 @@ test("mergeCandidates uses candidate.url when no repository URL is present", () 
   assert.equal(merged[0].evidence.length, 2);
 });
 
+test("mergeCandidates retains the lowest rank for duplicate evidence", () => {
+  const merged = mergeCandidates([
+    candidate({
+      evidence: [{
+        source: "github",
+        sourceId: "acme/widget",
+        sourceUrl: "https://github.com/acme/widget",
+        destinationUrl: "https://github.com/acme/widget",
+        title: "Widget",
+        snippet: "worse rank first",
+        query: "widget",
+        rank: 8,
+      }],
+    }),
+    candidate({
+      evidence: [{
+        source: "github",
+        sourceId: "acme/widget",
+        sourceUrl: "https://github.com/acme/widget",
+        destinationUrl: "https://github.com/acme/widget",
+        title: "Widget",
+        snippet: "better rank second",
+        query: "widget",
+        rank: 2,
+      }],
+    }),
+  ]);
+
+  assert.equal(merged[0].evidence.length, 1);
+  assert.equal(merged[0].evidence[0].rank, 2);
+});
+
 test("classifyCandidate requires explicit commercial evidence", () => {
   assert.equal(classifyCandidate(candidate({ description: "A great business tool" })), "unknown");
   assert.equal(

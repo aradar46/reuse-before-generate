@@ -2,51 +2,48 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildQueryPlan } from "../../dist/query-plan.js";
 
-test("buildQueryPlan normalizes explicit formulations", () => {
-  const plan = buildQueryPlan({
+test("buildQueryPlan normalizes explicit positional formulations", () => {
+  const plan = buildQueryPlan("legacy description", ["legacy", "keywords"], {
     category: "  dependency   scanner ",
     outcome: "  finds   vulnerable packages ",
-    synonyms: ["  supply chain ", "SCA  ", " "],
-    queries: ["  software   composition analysis  ", "  package   vulnerability scanner "],
+    synonyms: "  supply   chain security ",
   });
 
-  assert.deepEqual(plan.formulations, [
-    "software composition analysis",
-    "package vulnerability scanner",
-  ]);
-  assert.equal(plan.category, "dependency scanner");
-  assert.equal(plan.outcome, "finds vulnerable packages");
-  assert.deepEqual(plan.synonyms, ["supply chain", "SCA"]);
+  assert.deepEqual(plan.formulations, {
+    category: "dependency scanner",
+    outcome: "finds vulnerable packages",
+    synonyms: "supply chain security",
+  });
 });
 
-test("buildQueryPlan supplies legacy category and outcome without inventing synonyms", () => {
-  const plan = buildQueryPlan({
-    description: "  checks   repositories for licenses ",
-    keywords: ["license", " compliance ", "scanner"],
-  });
+test("buildQueryPlan supplies positional legacy category and outcome without synonyms", () => {
+  const plan = buildQueryPlan(
+    "  checks   repositories for licenses ",
+    ["license", " compliance ", "scanner"],
+  );
 
-  assert.equal(plan.category, "license compliance scanner");
-  assert.equal(plan.outcome, "checks repositories for licenses");
-  assert.deepEqual(plan.synonyms, []);
-  assert.deepEqual(plan.formulations, ["license compliance scanner"]);
+  assert.deepEqual(plan.formulations, {
+    category: "license compliance scanner",
+    outcome: "checks repositories for licenses",
+  });
+  assert.equal("synonyms" in plan.formulations, false);
 });
 
 test("buildQueryPlan detects a Python ecosystem when signals mention Python", () => {
-  const plan = buildQueryPlan({
+  const plan = buildQueryPlan("formats Python source code", ["formatter"], {
     category: "formatter",
     outcome: "formats Python source code",
-    synonyms: [],
+    synonyms: "python formatter",
   });
 
   assert.equal(plan.ecosystem, "python");
 });
 
 test("buildQueryPlan omits ecosystem for generic queries", () => {
-  const plan = buildQueryPlan({
+  const plan = buildQueryPlan("coordinates team meetings", ["calendar"], {
     category: "calendar",
     outcome: "coordinates team meetings",
-    synonyms: ["scheduling"],
-    queries: ["team calendar"],
+    synonyms: "scheduling",
   });
 
   assert.equal(plan.ecosystem, undefined);

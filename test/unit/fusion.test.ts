@@ -121,3 +121,44 @@ test("fuseCandidates derives canonicalUrl from candidate identity, not evidence"
 
   assert.equal(result.canonicalUrl, "https://example.com/widget");
 });
+
+test("fuseCandidates ignores zero, negative, and non-finite ranks", () => {
+  const [result] = fuseCandidates([
+    candidate({
+      evidence: [
+        {
+          source: "github",
+          sourceId: "acme/widget-zero",
+          sourceUrl: "https://github.com/acme/widget",
+          destinationUrl: "https://github.com/acme/widget",
+          title: "Widget",
+          snippet: "zero rank",
+          query: "zero",
+          rank: 0,
+        },
+        {
+          source: "npm",
+          sourceId: "widget-negative",
+          sourceUrl: "https://npmjs.com/package/widget",
+          destinationUrl: "https://github.com/acme/widget",
+          title: "Widget",
+          snippet: "negative rank",
+          query: "negative",
+          rank: -1,
+        },
+        {
+          source: "web",
+          sourceId: "widget-nan",
+          sourceUrl: "https://example.com/widget",
+          destinationUrl: "https://github.com/acme/widget",
+          title: "Widget",
+          snippet: "non-finite rank",
+          query: "nan",
+          rank: Number.NaN,
+        },
+      ],
+    }),
+  ]);
+
+  assert.equal(result.retrievalScore, 0);
+});

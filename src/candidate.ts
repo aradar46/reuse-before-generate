@@ -4,8 +4,11 @@ export type CandidateKind = "open_source" | "commercial" | "unknown";
 export type ResultPool = "reuse" | "competition";
 export type Ecosystem = "python" | "rust" | "ruby" | "php" | "jvm";
 
-/** Queries are collected as an ordered set of normalized search strings. */
-export type QueryFormulations = string[];
+export interface QueryFormulations {
+  category: string;
+  outcome: string;
+  synonyms?: string;
+}
 
 export interface Evidence {
   source: Source;
@@ -33,7 +36,7 @@ export interface RawCandidate {
   evidence: Evidence[];
   repositoryUrl?: string;
   packageUrl?: string;
-  traction?: number;
+  traction?: string;
 }
 
 export interface RankedCandidate extends RawCandidate {
