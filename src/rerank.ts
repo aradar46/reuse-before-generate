@@ -9,19 +9,48 @@
 // (Claude Code, Claude Desktop, etc.) does the semantic judgment itself as
 // part of its own response, using whatever session is already running.
 
-import type { VerifiedCandidate } from "./verify.js";
+import type { PreparedCandidate } from "./verify.js";
+
+function traction(candidate: PreparedCandidate): string {
+  if (candidate.traction) return candidate.traction;
+  if (candidate.stars !== undefined) return `${candidate.stars} stars`;
+  return "unknown";
+}
+
+function formatCandidate(candidate: PreparedCandidate, index: number): string {
+  const health = candidate.pool === "reuse"
+    ? candidate.maintenanceReason
+    : "discovery evidence is not a maintenance claim";
+  const evidence = candidate.evidence
+    .map((item) =>
+      `      - source=${item.source} rank=${item.rank} query="${item.query}" snippet="${item.snippet}"`)
+    .join("\n");
+  return [
+    `${index + 1}. ${candidate.name} (source=${candidate.source}, id="${candidate.id}")`,
+    `   kind: ${candidate.kind}`,
+    `   url: ${candidate.url}`,
+    `   description: ${candidate.description || "(no description)"}`,
+    `   traction: ${traction(candidate)}`,
+    `   health/limits: ${health}`,
+    "   evidence:",
+    evidence || "      - (none)",
+  ].join("\n");
+}
+
+function formatSection(candidates: PreparedCandidate[]): string {
+  return candidates.length > 0
+    ? candidates.map(formatCandidate).join("\n\n")
+    : "(none retrieved)";
+}
 
 export function buildRerankPrompt(
   description: string,
-  candidates: VerifiedCandidate[],
+  candidates: PreparedCandidate[],
 ): string {
-  const candidateBlock = candidates
-    .map((c, i) => {
-      const traction =
-        c.source === "github" ? `${c.stars ?? 0} stars` : "n/a";
-      return `${i + 1}. id="${c.id}" source=${c.source} name="${c.name}"\n   description: ${c.description || "(no description)"}\n   url: ${c.url}\n   maintenance: ${c.maintenanceReason}\n   traction: ${traction}`;
-    })
-    .join("\n\n");
+  const reuse = candidates.filter((candidate) => candidate.pool === "reuse");
+  const competition = candidates.filter(
+    (candidate) => candidate.pool === "competition",
+  );
 
-  return `Requested project description:\n"""${description}"""\n\nVerified-maintained candidates found via search (GitHub/npm/Python):\n\n${candidateBlock}\n\n---\nScore each candidate's semantic relevance to the requested project on your own judgment:\n- 80-100: does essentially the same job — extending it would likely satisfy the need\n- 40-79: adjacent/partial overlap, worth a look but not a drop-in replacement\n- 0-39: superficial or keyword-only match, not a real alternative\n\nRelevance is about function, not popularity — a brand-new 0-star repo that does exactly this job scores just as high as a 10k-star one; note low traction as a caveat in your suggestion (e.g. "early-stage, may be rough around the edges") rather than as a reason to discount or exclude it.\n\nPick at most 3 candidates scoring 40+, ranked highest first. For each, give a one-sentence "extend instead of rebuild" suggestion specific to that candidate. If none score 40+, say so plainly and confirm it's clear to build from scratch.`;
+  return `Requested project description:\n"""${description}"""\n\nProjects you could reuse\n\n${formatSection(reuse)}\n\nProducts you would compete with\n\n${formatSection(competition)}\n\n---\nUse your own semantic judgment to score relevance. Consider function, audience, workflow fit, reuse potential, market overlap, evidence quality, and project health.\n\nScoring:\n- 80-100: essentially the same job\n- 40-79: adjacent or partial overlap worth examining\n- 0-39: superficial or keyword-only overlap\n\nPopularity is context only, never a substitute for relevance. Preserve unknown kinds and other unknown values as unknown. Select at most 3 candidates scoring 40+ per section, ranked highest first. Do not pad either section with weak matches. For reusable projects, give a specific extension suggestion; for products, explain the market overlap. If a section has no candidate scoring 40+, use exactly: No strong match found in the sources searched.`;
 }

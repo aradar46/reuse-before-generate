@@ -43,7 +43,9 @@ export function buildQueryPlan(
   const formulations: QueryFormulations = synonyms
     ? { category, outcome, synonyms }
     : { category, outcome };
-  const ecosystem = detectEcosystem(description, ...keywords, category, outcome, synonyms ?? "");
+  const ecosystem = queries === undefined
+    ? detectEcosystem(description, ...keywords)
+    : detectEcosystem(category, outcome, synonyms ?? "");
 
   return ecosystem
     ? { formulations, ecosystem }

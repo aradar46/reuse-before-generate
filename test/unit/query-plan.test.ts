@@ -48,3 +48,13 @@ test("buildQueryPlan omits ecosystem for generic queries", () => {
 
   assert.equal(plan.ecosystem, undefined);
 });
+
+test("explicit formulations ignore misleading legacy ecosystem keywords", () => {
+  const plan = buildQueryPlan("legacy Python wording", ["python", "junk"], {
+    category: "team calendar",
+    outcome: "coordinate meeting availability",
+    synonyms: "group scheduling",
+  });
+
+  assert.equal(plan.ecosystem, undefined);
+});

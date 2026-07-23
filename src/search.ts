@@ -1,22 +1,21 @@
 // Retrieval layer: pulls candidate matches for a free-text project
-// description from GitHub, npm, and a Python lane (GitHub scoped to
-// language:python). Kept deliberately dumb (lexical queries) — semantic
-// filtering happens later in rerank.ts.
+// description from repository, package-registry, launch, product-feed, and
+// web sources. Kept deliberately dumb (lexical queries) — semantic filtering
+// happens later in rerank.ts.
 
 import { httpGet } from "./http.js";
 import { GitHubSearchResponse, NpmSearchResponse, type GitHubSearchItemT } from "./schemas.js";
-import { ok, err, type Result } from "./result.js";
+import { ok, err, type Result, type Source } from "./result.js";
+import { buildQueryPlan, type QueryInput } from "./query-plan.js";
+import { mergeCandidates } from "./canonicalize.js";
+import type { RawCandidate } from "./candidate.js";
+import { searchGitLabResult } from "./sources/gitlab.js";
+import { searchShowHnResult } from "./sources/hacker-news.js";
+import { searchProductHuntResult } from "./sources/product-hunt.js";
+import { searchWebResult } from "./sources/duckduckgo.js";
+import { searchRegistryResults } from "./sources/registries.js";
 
-export interface RawCandidate {
-  source: "github" | "npm" | "python";
-  id: string; // repo full_name or npm package name
-  name: string;
-  url: string;
-  description: string;
-  stars?: number;
-  pushedAt?: string; // ISO date of last commit/publish
-  archived?: boolean;
-}
+export type { RawCandidate } from "./candidate.js";
 
 const USER_AGENT = "reuse-before-generate-mcp/0.2";
 const GITHUB_API = "https://api.github.com";
@@ -170,16 +169,37 @@ async function fetchGitHubSearch(
   return parsed.data.items;
 }
 
-function toCandidate(item: GitHubSearchItemT): RawCandidate {
+function toGitHubCandidate(
+  item: GitHubSearchItemT,
+  source: "github" | "python",
+  query: string,
+  rank: number,
+): RawCandidate {
+  const description = item.description ?? "";
   return {
-    source: "github",
+    source,
     id: item.full_name,
     name: item.full_name,
     url: item.html_url,
-    description: item.description ?? "",
+    description,
     stars: item.stargazers_count,
     pushedAt: item.pushed_at,
     archived: item.archived,
+    kind: "open_source",
+    repositoryUrl: item.html_url,
+    evidence: [
+      {
+        source,
+        sourceId: item.full_name,
+        sourceUrl: item.html_url,
+        destinationUrl: item.html_url,
+        title: item.full_name,
+        snippet: description,
+        query,
+        rank,
+        date: item.pushed_at,
+      },
+    ],
   };
 }
 
@@ -230,14 +250,15 @@ export async function searchGitHubResult(
       fetchGitHubSearch(baseQuery, limit),
       fetchGitHubSearch(lowStarQuery, Math.min(limit, 10)),
     ]);
-    const seen = new Set<string>();
-    const merged: RawCandidate[] = [];
-    for (const item of [...primary, ...lowStar]) {
-      if (seen.has(item.full_name)) continue;
-      seen.add(item.full_name);
-      merged.push(toCandidate(item));
-    }
-    return ok("github", merged);
+    return ok(
+      "github",
+      mergeCandidates([
+        ...primary.map((item, index) =>
+          toGitHubCandidate(item, "github", baseQuery, index + 1)),
+        ...lowStar.map((item, index) =>
+          toGitHubCandidate(item, "github", lowStarQuery, index + 1)),
+      ]),
+    );
   } catch (e) {
     return err("github", (e as Error).message);
   }
@@ -273,14 +294,36 @@ export async function searchNpmResult(
     if (!parsed.success) {
       return err("npm", "unexpected response shape");
     }
-    const candidates = parsed.data.objects.map((obj) => ({
-      source: "npm" as const,
-      id: obj.package.name,
-      name: obj.package.name,
-      url: obj.package.links.repository ?? obj.package.links.npm,
-      description: obj.package.description ?? "",
-      pushedAt: obj.package.date,
-    }));
+    const candidates = parsed.data.objects.map((obj, index) => {
+      const packageUrl = obj.package.links.npm;
+      const repositoryUrl = obj.package.links.repository;
+      const destinationUrl = repositoryUrl ?? packageUrl;
+      const description = obj.package.description ?? "";
+      return {
+        source: "npm" as const,
+        id: obj.package.name,
+        name: obj.package.name,
+        url: destinationUrl,
+        description,
+        pushedAt: obj.package.date,
+        kind: "open_source" as const,
+        ...(repositoryUrl ? { repositoryUrl } : {}),
+        packageUrl,
+        evidence: [
+          {
+            source: "npm" as const,
+            sourceId: obj.package.name,
+            sourceUrl: packageUrl,
+            destinationUrl,
+            title: obj.package.name,
+            snippet: description,
+            query: keywords,
+            rank: index + 1,
+            date: obj.package.date,
+          },
+        ],
+      };
+    });
     return ok("npm", candidates);
   } catch (e) {
     return err("npm", (e as Error).message);
@@ -314,11 +357,13 @@ export async function searchPythonResult(
 ): Promise<Result<RawCandidate[]>> {
   const keywords = meaningfulKeywords(overrideKeywords ?? extractKeywords(description, 4));
   if (keywords.length === 0) return ok("python", []);
+  const query = `${keywords.join(" ")} language:python`;
   try {
-    const items = await fetchGitHubSearch(`${keywords.join(" ")} language:python`, limit);
+    const items = await fetchGitHubSearch(query, limit);
     return ok(
       "python",
-      items.map((item) => ({ ...toCandidate(item), source: "python" as const })),
+      items.map((item, index) =>
+        toGitHubCandidate(item, "python", query, index + 1)),
     );
   } catch (e) {
     return err("python", (e as Error).message);
@@ -335,22 +380,85 @@ export async function searchPythonResult(
 /** Returns one Result per source, so the caller can report partial failure
  * honestly ("npm search failed") instead of silently returning fewer
  * candidates with no explanation. */
+function uniqueQueries(...queries: Array<string | undefined>): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const query of queries) {
+    if (!query || query.length < MIN_QUERY_CHARS) continue;
+    const key = query.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(query);
+  }
+  return unique;
+}
+
+/**
+ * Runs multiple formulations against one source while exposing one source
+ * result. Any successful formulation keeps the source available; only an
+ * across-the-board failure marks it unavailable.
+ */
+export async function combineSourceQueries(
+  source: Source,
+  queries: readonly string[],
+  search: (query: string) => Promise<Result<RawCandidate[]>>,
+): Promise<Result<RawCandidate[]>> {
+  if (queries.length === 0) return ok(source, []);
+  const results = await Promise.all(queries.map(search));
+  const successes = results.filter((result) => result.ok);
+  if (successes.length > 0) {
+    return ok(
+      source,
+      mergeCandidates(successes.flatMap((result) => result.value)),
+    );
+  }
+  const reasons = [...new Set(
+    results.flatMap((result) => result.ok ? [] : [result.reason]),
+  )];
+  return err(source, reasons.join("; "));
+}
+
 export async function searchAllResults(
   description: string,
   keywords?: string[],
+  queries?: QueryInput,
 ): Promise<Result<RawCandidate[]>[]> {
-  return Promise.all([
-    searchGitHubResult(description, keywords),
-    searchNpmResult(description, keywords),
-    searchPythonResult(description, keywords),
+  const fallbackKeywords = keywords ?? extractKeywords(description, 4);
+  const plan = buildQueryPlan(description, fallbackKeywords, queries);
+  const { category, outcome, synonyms } = plan.formulations;
+  const npmQueries = uniqueQueries(category, outcome, synonyms).slice(0, 2);
+  const gitLabQueries = uniqueQueries(category, outcome);
+  const showHnQueries = uniqueQueries(category, outcome, synonyms);
+
+  const generic = Promise.all([
+    searchGitHubResult(description, [category]),
+    combineSourceQueries(
+      "npm",
+      npmQueries,
+      (query) => searchNpmResult(description, [query]),
+    ),
+    combineSourceQueries("gitlab", gitLabQueries, searchGitLabResult),
+    combineSourceQueries("hackernews", showHnQueries, searchShowHnResult),
+    searchProductHuntResult(plan.formulations),
+    searchWebResult(category),
   ]);
+  const python = plan.ecosystem === "python"
+    ? searchPythonResult(description, [category])
+    : undefined;
+  const registry = searchRegistryResults(plan.ecosystem, category);
+
+  const results = await generic;
+  if (python) results.push(await python);
+  results.push(...await registry);
+  return results;
 }
 
 /** Flattened view for callers that do not care which source failed. */
 export async function searchAll(
   description: string,
   keywords?: string[],
+  queries?: QueryInput,
 ): Promise<RawCandidate[]> {
-  const results = await searchAllResults(description, keywords);
+  const results = await searchAllResults(description, keywords, queries);
   return results.flatMap((r) => (r.ok ? r.value : []));
 }
