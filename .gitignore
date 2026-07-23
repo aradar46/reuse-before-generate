@@ -4,3 +4,4 @@ dist/
 .test-state/
 docs/superpowers/*
 .worktrees/
+audit/
