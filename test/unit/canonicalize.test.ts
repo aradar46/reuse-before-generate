@@ -182,10 +182,99 @@ test("mergeCandidates replaces an invalid duplicate rank with a valid rank", () 
 });
 
 test("classifyCandidate requires explicit commercial evidence", () => {
-  assert.equal(classifyCandidate(candidate({ description: "A great business tool" })), "unknown");
+  const product = {
+    url: "https://example.com/widget",
+    evidence: [{
+      source: "web",
+      sourceId: "widget",
+      sourceUrl: "https://duckduckgo.com/?q=widget",
+      destinationUrl: "https://example.com/widget",
+      title: "Widget",
+      snippet: "A great business tool",
+      query: "widget",
+      rank: 1,
+    }],
+  };
   assert.equal(
-    classifyCandidate(candidate({ description: "Hosted SaaS with subscription pricing" })),
+    classifyCandidate(candidate({ ...product, description: "A great business tool" })),
+    "unknown",
+  );
+  assert.equal(
+    classifyCandidate(candidate({
+      ...product,
+      description: "Hosted SaaS with subscription pricing",
+    })),
     "commercial",
   );
   assert.equal(classifyCandidate(candidate({ repositoryUrl: "https://github.com/acme/widget" })), "open_source");
+});
+
+test("repository destinations from discovery evidence classify as open source", () => {
+  const discovered = candidate({
+    source: "hackernews",
+    url: "https://news.ycombinator.com/item?id=123",
+    evidence: [{
+      source: "hackernews",
+      sourceId: "123",
+      sourceUrl: "https://news.ycombinator.com/item?id=123",
+      destinationUrl: "https://gitlab.com/acme/widget",
+      title: "Show HN: Widget",
+      snippet: "A useful widget",
+      query: "widget",
+      rank: 1,
+    }],
+  });
+
+  assert.equal(classifyCandidate(discovered), "open_source");
+  const [merged] = mergeCandidates([discovered]);
+  assert.equal(merged.repositoryUrl, "https://gitlab.com/acme/widget");
+});
+
+test("mergeCandidates joins transitive repository, package, and evidence aliases", () => {
+  const merged = mergeCandidates([
+    candidate({
+      id: "acme/widget",
+      url: "https://github.com/acme/widget",
+      kind: "open_source",
+    }),
+    candidate({
+      source: "npm",
+      id: "widget",
+      url: "https://www.npmjs.com/package/widget",
+      repositoryUrl: "https://github.com/acme/widget.git",
+      packageUrl: "https://www.npmjs.com/package/widget",
+      evidence: [{
+        source: "npm",
+        sourceId: "widget",
+        sourceUrl: "https://www.npmjs.com/package/widget",
+        destinationUrl: "https://github.com/acme/widget",
+        title: "widget",
+        snippet: "package evidence",
+        query: "widget package",
+        rank: 1,
+      }],
+    }),
+    candidate({
+      source: "web",
+      id: "widget-docs",
+      url: "https://docs.example.com/widget",
+      evidence: [{
+        source: "web",
+        sourceId: "widget-docs",
+        sourceUrl: "https://duckduckgo.com/?q=widget",
+        destinationUrl: "https://npmjs.com/package/widget/",
+        title: "Widget docs",
+        snippet: "web evidence",
+        query: "widget",
+        rank: 3,
+      }],
+    }),
+  ]);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].id, "acme/widget");
+  assert.equal(merged[0].repositoryUrl, "https://github.com/acme/widget");
+  assert.equal(merged[0].packageUrl, "https://www.npmjs.com/package/widget");
+  assert.equal(merged[0].evidence.length, 3);
+  assert.equal(merged[0].kind, "open_source");
 });

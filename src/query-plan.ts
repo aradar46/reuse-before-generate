@@ -28,9 +28,9 @@ export function detectEcosystem(...texts: readonly string[]): Ecosystem | undefi
 }
 
 /**
- * Builds a normalized query plan without manufacturing terminology. The
- * optional structured input replaces the legacy description-and-keywords
- * formulation in full.
+ * Builds a normalized query plan without manufacturing terminology.
+ * Structured input replaces legacy search formulations, while ecosystem
+ * signals are retained across both the original and structured input.
  */
 export function buildQueryPlan(
   description: string,
@@ -43,9 +43,13 @@ export function buildQueryPlan(
   const formulations: QueryFormulations = synonyms
     ? { category, outcome, synonyms }
     : { category, outcome };
-  const ecosystem = queries === undefined
-    ? detectEcosystem(description, ...keywords)
-    : detectEcosystem(category, outcome, synonyms ?? "");
+  const ecosystem = detectEcosystem(
+    description,
+    ...keywords,
+    category,
+    outcome,
+    synonyms ?? "",
+  );
 
   return ecosystem
     ? { formulations, ecosystem }
