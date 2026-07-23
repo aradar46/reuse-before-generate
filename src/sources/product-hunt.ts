@@ -159,7 +159,6 @@ export async function searchProductHuntResult(
         name: item.title,
         url: item.url,
         description: item.description,
-        ...(item.date ? { pushedAt: item.date } : {}),
         kind: "unknown",
         evidence: [
           {

@@ -39,7 +39,7 @@ export function formatCoverage(
   ];
   return {
     text: lines.join("\n"),
-    allFailed: successful.length === 0,
+    allFailed: !successful.some((source) => source !== "web"),
   };
 }
 

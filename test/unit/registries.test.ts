@@ -147,9 +147,6 @@ test("PHP routes only to Packagist, enriches at most five hits, and keeps max va
         },
       });
     }
-    if (url.includes("pkg-2.json")) {
-      return new Response("", { status: 503 });
-    }
     return Response.json({ package: { versions: {} } });
   });
 
@@ -167,6 +164,31 @@ test("PHP routes only to Packagist, enriches at most five hits, and keeps max va
     5,
   );
   assert.equal(urls[0], "https://packagist.org/search.json?q=http%20client");
+});
+
+test("Packagist fails honestly when an attempted detail enrichment fails", async () => {
+  const urls: string[] = [];
+  setFetcher(async (url) => {
+    urls.push(url);
+    if (url.startsWith("https://packagist.org/search.json")) {
+      return Response.json({
+        results: [{
+          name: "vendor/pkg",
+          description: "Package",
+          url: "https://packagist.org/packages/vendor/pkg",
+          repository: "https://github.com/vendor/pkg",
+          downloads: 10,
+          favers: 1,
+        }],
+      });
+    }
+    return new Response("", { status: 503 });
+  });
+
+  assert.deepEqual(await searchRegistryResults("php", "package"), [
+    { ok: false, source: "packagist", reason: "HTTP 503" },
+  ]);
+  assert.equal(urls.length, 2);
 });
 
 test("JVM routes only to Maven Central and maps an artifact", async () => {

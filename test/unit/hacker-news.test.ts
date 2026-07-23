@@ -32,7 +32,6 @@ test("Show HN maps destination and maker-page evidence", async () => {
       name: "Show HN: Neat tool",
       url: "https://neat.example",
       description: "A useful tool.",
-      pushedAt: "2026-07-20T10:00:00Z",
       kind: "unknown",
       traction: "81 points",
       evidence: [

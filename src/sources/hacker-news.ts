@@ -21,7 +21,6 @@ function toCandidate(hit: HackerNewsSearchHitT, query: string, rank: number): Ra
     name: title,
     url: destinationUrl,
     description,
-    pushedAt: hit.created_at,
     kind: "unknown",
     ...(hit.points == null ? {} : { traction: `${hit.points} points` }),
     evidence: [

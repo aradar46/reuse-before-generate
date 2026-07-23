@@ -179,11 +179,13 @@ export async function searchRubyGemsResult(
   );
 }
 
-async function packagistActivity(name: string): Promise<string | undefined> {
+async function packagistActivity(
+  name: string,
+): Promise<Result<string | undefined>> {
   const url =
     `https://packagist.org/packages/${encodeUrlComponent(name)}.json`;
   const result = await validatedJson("packagist", url, PackagistDetailResponse);
-  if (!result.ok) return undefined;
+  if (!result.ok) return result;
   let latest: { value: string; time: number } | undefined;
   for (const version of Object.values(result.value.package.versions)) {
     if (!version.time) continue;
@@ -191,7 +193,7 @@ async function packagistActivity(name: string): Promise<string | undefined> {
     if (Number.isNaN(time)) continue;
     if (!latest || time > latest.time) latest = { value: version.time, time };
   }
-  return latest?.value;
+  return ok("packagist", latest?.value);
 }
 
 export async function searchPackagistResult(
@@ -202,11 +204,17 @@ export async function searchPackagistResult(
   const result = await validatedJson("packagist", url, PackagistSearchResponse);
   if (!result.ok) return result;
   const packages = result.value.results.slice(0, limit);
-  const activities = await Promise.all(
-    packages.map((pkg, index) =>
-      index < 5 ? packagistActivity(pkg.name) : Promise.resolve(undefined),
-    ),
+  const detailResults = await Promise.all(
+    packages.slice(0, 5).map((pkg) => packagistActivity(pkg.name)),
   );
+  const detailFailure = detailResults.find((detail) => !detail.ok);
+  if (detailFailure && !detailFailure.ok) {
+    return err("packagist", detailFailure.reason);
+  }
+  const activities = packages.map((_pkg, index) => {
+    const detail = detailResults[index];
+    return detail?.ok ? detail.value : undefined;
+  });
   return ok(
     "packagist",
     packages.map((pkg, index) => {

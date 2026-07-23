@@ -59,7 +59,6 @@ test("Product Hunt matches two distinct terms and preserves query and feed rank"
     name: "TermGlass",
     url: "https://www.producthunt.com/products/termglass",
     description: "A terminal viewer for exploring JSON data.",
-    pushedAt: "Wed, 22 Jul 2026 10:00:00 GMT",
     kind: "unknown",
     evidence: [
       {

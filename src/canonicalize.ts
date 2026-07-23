@@ -1,6 +1,18 @@
 import type { CandidateKind, Evidence, RawCandidate } from "./candidate.js";
+import type { Source } from "./result.js";
 
 const TRACKING_PARAMETER = /^(?:utm_.+|ref|referrer)$/i;
+const ISO_DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
+const AUTHORITATIVE_ACTIVITY_SOURCES: ReadonlySet<Source> = new Set([
+  "github",
+  "npm",
+  "python",
+  "gitlab",
+  "crates",
+  "rubygems",
+  "packagist",
+  "maven",
+]);
 
 /** Produces a stable URL key without throwing on malformed upstream data. */
 export function canonicalizeUrl(raw: string): string {
@@ -80,6 +92,29 @@ function richerNumber(left: number | undefined, right: number | undefined): numb
   return Math.max(left, right);
 }
 
+function validActivityTime(value: string | undefined): number | undefined {
+  if (!value || !ISO_DATE_PREFIX.test(value)) return undefined;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? undefined : time;
+}
+
+function freshestPushedAt(
+  current: string | undefined,
+  candidate: RawCandidate,
+): string | undefined {
+  const next = AUTHORITATIVE_ACTIVITY_SOURCES.has(candidate.source)
+    ? candidate.pushedAt
+    : undefined;
+  if (!next) return current;
+  if (!current) return next;
+  const currentTime = validActivityTime(current);
+  const nextTime = validActivityTime(next);
+  if (nextTime !== undefined && (currentTime === undefined || nextTime > currentTime)) {
+    return next;
+  }
+  return current;
+}
+
 /**
  * Collapses observations of the same repository (or destination where no
  * repository is known), retaining every independently useful evidence item.
@@ -91,11 +126,15 @@ export function mergeCandidates(candidates: readonly RawCandidate[]): RawCandida
     const current = merged.get(key);
     const classified = classifyCandidate(candidate);
     if (!current) {
-      merged.set(key, {
+      const normalized = {
         ...candidate,
         kind: classified,
         evidence: dedupeEvidence(candidate.evidence),
-      });
+      };
+      if (!AUTHORITATIVE_ACTIVITY_SOURCES.has(candidate.source)) {
+        delete normalized.pushedAt;
+      }
+      merged.set(key, normalized);
       continue;
     }
 
@@ -108,7 +147,7 @@ export function mergeCandidates(candidates: readonly RawCandidate[]): RawCandida
       packageUrl: current.packageUrl ?? candidate.packageUrl,
       stars: richerNumber(current.stars, candidate.stars),
       traction: current.traction ?? candidate.traction,
-      pushedAt: current.pushedAt ?? candidate.pushedAt,
+      pushedAt: freshestPushedAt(current.pushedAt, candidate),
       archived: current.archived ?? candidate.archived,
       evidence: dedupeEvidence([...current.evidence, ...candidate.evidence]),
     });

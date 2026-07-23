@@ -88,3 +88,18 @@ test("formatCoverage does not strip a source name that is only a word prefix", (
 
   assert.match(coverage.text, /web \(websocket closed\)/);
 });
+
+test("formatCoverage treats web-only success as all operational sources failed", () => {
+  const coverage = formatCoverage([
+    { ok: false, source: "github", reason: "HTTP 403" },
+    { ok: false, source: "npm", reason: "HTTP 503" },
+    { ok: true, source: "web", value: [] },
+  ]);
+
+  assert.equal(coverage.allFailed, true);
+  assert.match(coverage.text, /Searched: web/);
+  assert.match(
+    coverage.text,
+    /Unavailable: github \(HTTP 403\); npm \(HTTP 503\)/,
+  );
+});

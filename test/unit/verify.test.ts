@@ -186,3 +186,52 @@ test("prepareCandidates preserves ranked fields and retrieval-score ordering", a
   assert.equal(prepared[1]?.pool, "reuse");
   assert.equal(prepared[1] && "maintained" in prepared[1], true);
 });
+
+test("fresh registry activity wins over an old launch date for the same repository", async () => {
+  const repositoryUrl = "https://github.com/acme/widget";
+  const currentActivity = daysAgo(2);
+  const prepared = await prepareCandidates([
+    rawCandidate({
+      source: "hackernews",
+      id: "launch-1",
+      url: repositoryUrl,
+      repositoryUrl: undefined,
+      pushedAt: daysAgo(800),
+      kind: "unknown",
+      evidence: [{
+        source: "hackernews",
+        sourceId: "launch-1",
+        sourceUrl: "https://news.ycombinator.com/item?id=1",
+        destinationUrl: repositoryUrl,
+        title: "Show HN: Widget",
+        snippet: "Widget launch",
+        query: "widget",
+        rank: 1,
+        date: daysAgo(800),
+      }],
+    }),
+    rawCandidate({
+      source: "crates",
+      id: "widget",
+      url: repositoryUrl,
+      repositoryUrl,
+      pushedAt: currentActivity,
+      evidence: [{
+        source: "crates",
+        sourceId: "widget",
+        sourceUrl: "https://crates.io/crates/widget",
+        destinationUrl: repositoryUrl,
+        title: "widget",
+        snippet: "Widget crate",
+        query: "widget",
+        rank: 1,
+        date: currentActivity,
+      }],
+    }),
+  ]);
+
+  assert.equal(prepared.length, 1);
+  assert.equal(prepared[0]?.pool, "reuse");
+  assert.equal(prepared[0]?.pushedAt, currentActivity);
+  assert.equal(prepared[0] && "maintained" in prepared[0], true);
+});
