@@ -14,13 +14,30 @@
 // re-rank/scoring step as a "how established is this" signal, not in the
 // binary maintained/abandoned gate.
 
-import type { RawCandidate } from "./search.js";
+import type { RankedCandidate, RawCandidate } from "./candidate.js";
+import { fuseCandidates } from "./fusion.js";
 
-export interface VerifiedCandidate extends RawCandidate {
+export interface Verification {
   maintained: boolean;
   maintenanceReason: string;
   daysSinceLastActivity: number | null;
 }
+
+export type VerifiedCandidate<T extends RawCandidate = RawCandidate> =
+  T & Verification;
+
+export type PreparedReuseCandidate =
+  VerifiedCandidate<RankedCandidate> & {
+    pool: "reuse";
+    maintained: true;
+  };
+
+export type PreparedCompetitionCandidate =
+  RankedCandidate & { pool: "competition" };
+
+export type PreparedCandidate =
+  | PreparedReuseCandidate
+  | PreparedCompetitionCandidate;
 
 const MAINTAINED_WINDOW_DAYS = 365; // pushed/published within the last year
 
@@ -49,9 +66,9 @@ function activityAge(iso: string | undefined): ActivityAge {
   return { kind: "known", days: Math.floor((Date.now() - then) / (1000 * 60 * 60 * 24)) };
 }
 
-export async function verifyCandidate(
-  candidate: RawCandidate,
-): Promise<VerifiedCandidate> {
+export async function verifyCandidate<T extends RawCandidate>(
+  candidate: T,
+): Promise<VerifiedCandidate<T>> {
   const age = activityAge(candidate.pushedAt);
   const days = age.kind === "known" ? age.days : null;
 
@@ -105,8 +122,31 @@ export async function verifyCandidate(
   };
 }
 
-export async function verifyAll(
-  candidates: RawCandidate[],
-): Promise<VerifiedCandidate[]> {
+export async function verifyAll<T extends RawCandidate>(
+  candidates: T[],
+): Promise<Array<VerifiedCandidate<T>>> {
   return Promise.all(candidates.map(verifyCandidate));
+}
+
+/** Fuses retrieval evidence, verifies reuse health, and keeps market evidence separate. */
+export async function prepareCandidates(
+  raw: readonly RawCandidate[],
+): Promise<PreparedCandidate[]> {
+  const prepared = await Promise.all(
+    fuseCandidates(raw).map(async (candidate): Promise<PreparedCandidate | undefined> => {
+      if (candidate.pool === "competition") {
+        return { ...candidate, pool: "competition" };
+      }
+      const verified = await verifyCandidate(candidate);
+      if (!verified.maintained) return undefined;
+      return {
+        ...verified,
+        pool: "reuse",
+        maintained: true,
+      };
+    }),
+  );
+  return prepared
+    .filter((candidate): candidate is PreparedCandidate => candidate !== undefined)
+    .sort((left, right) => right.retrievalScore - left.retrievalScore);
 }

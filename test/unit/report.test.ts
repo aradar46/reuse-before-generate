@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatSourceFailures } from "../../dist/report.js";
+import { formatCoverage, formatSourceFailures } from "../../dist/report.js";
 
 test("returns an empty string when every source succeeded", () => {
   const out = formatSourceFailures([
@@ -40,4 +40,66 @@ test("names every failing source when more than one fails", () => {
   ]);
   assert.match(out, /github/);
   assert.match(out, /npm/);
+});
+
+test("formatCoverage lists every successful source when all succeeded", () => {
+  const coverage = formatCoverage([
+    { ok: true, source: "github", value: [] },
+    { ok: true, source: "npm", value: [] },
+  ]);
+
+  assert.equal(coverage.allFailed, false);
+  assert.equal(
+    coverage.text,
+    "Search coverage:\nSearched: github, npm\nUnavailable: none",
+  );
+});
+
+test("formatCoverage reports partial failures with bare, non-repeated reasons", () => {
+  const coverage = formatCoverage([
+    { ok: true, source: "github", value: [] },
+    { ok: false, source: "npm", reason: "npm search failed: HTTP 503" },
+  ]);
+
+  assert.equal(coverage.allFailed, false);
+  assert.match(coverage.text, /Searched: github/);
+  assert.match(coverage.text, /Unavailable: npm \(HTTP 503\)/);
+  assert.doesNotMatch(coverage.text, /npm \(npm/);
+});
+
+test("formatCoverage marks all failed only when no source succeeded", () => {
+  const coverage = formatCoverage([
+    { ok: false, source: "github", reason: "HTTP 403" },
+    { ok: false, source: "web", reason: "challenge response" },
+  ]);
+
+  assert.equal(coverage.allFailed, true);
+  assert.match(coverage.text, /Searched: none/);
+  assert.match(
+    coverage.text,
+    /Unavailable: github \(HTTP 403\); web \(challenge response\)/,
+  );
+});
+
+test("formatCoverage does not strip a source name that is only a word prefix", () => {
+  const coverage = formatCoverage([
+    { ok: false, source: "web", reason: "websocket closed" },
+  ]);
+
+  assert.match(coverage.text, /web \(websocket closed\)/);
+});
+
+test("formatCoverage treats web-only success as all operational sources failed", () => {
+  const coverage = formatCoverage([
+    { ok: false, source: "github", reason: "HTTP 403" },
+    { ok: false, source: "npm", reason: "HTTP 503" },
+    { ok: true, source: "web", value: [] },
+  ]);
+
+  assert.equal(coverage.allFailed, true);
+  assert.match(coverage.text, /Searched: web/);
+  assert.match(
+    coverage.text,
+    /Unavailable: github \(HTTP 403\); npm \(HTTP 503\)/,
+  );
 });

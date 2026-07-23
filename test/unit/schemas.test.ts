@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GitHubSearchResponse, NpmSearchResponse } from "../../dist/schemas.js";
+import {
+  GitHubSearchResponse,
+  GitLabSearchResponse,
+  HackerNewsSearchResponse,
+  NpmSearchResponse,
+} from "../../dist/schemas.js";
 
 test("GitHubSearchResponse accepts a well-formed payload", () => {
   const parsed = GitHubSearchResponse.safeParse({
@@ -80,3 +85,50 @@ test("NpmSearchResponse rejects a non-array objects field", () => {
   assert.equal(parsed.success, false);
 });
 
+test("GitLabSearchResponse accepts nullable project descriptions", () => {
+  assert.equal(
+    GitLabSearchResponse.safeParse([
+      {
+        id: 1,
+        name_with_namespace: "group/project",
+        web_url: "https://gitlab.com/group/project",
+        description: null,
+        star_count: 2,
+        last_activity_at: "2026-07-20T00:00:00Z",
+      },
+    ]).success,
+    true,
+  );
+});
+
+test("GitLabSearchResponse accepts captured list responses without archived", () => {
+  const parsed = GitLabSearchResponse.safeParse([
+    {
+      id: 1,
+      name_with_namespace: "group/project",
+      web_url: "https://gitlab.com/group/project",
+      description: "Project",
+      star_count: 2,
+      last_activity_at: "2026-07-20T00:00:00Z",
+    },
+  ]);
+  assert.equal(parsed.success, true);
+});
+
+test("HackerNewsSearchResponse accepts optional nullable launch fields", () => {
+  assert.equal(
+    HackerNewsSearchResponse.safeParse({
+      hits: [
+        {
+          objectID: "1",
+          title: null,
+          created_at: "2026-07-20T00:00:00Z",
+          url: null,
+          story_text: null,
+          points: null,
+        },
+      ],
+    }).success,
+    true,
+  );
+});

@@ -1,6 +1,11 @@
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { httpGet, setFetcher, resetFetcher } from "../../dist/http.js";
+import {
+  encodeUrlComponent,
+  httpGet,
+  setFetcher,
+  resetFetcher,
+} from "../../dist/http.js";
 
 afterEach(() => resetFetcher());
 
@@ -55,4 +60,9 @@ test("setFetcher still works after resetFetcher", async () => {
   });
   await httpGet("https://example.test/a", {});
   assert.equal(called, true);
+});
+
+test("shared URL encoding replaces lone surrogates but preserves valid emoji pairs", () => {
+  assert.equal(encodeUrlComponent("\ud800x\udc00"), "%EF%BF%BDx%EF%BF%BD");
+  assert.equal(encodeUrlComponent("a😀b"), "a%F0%9F%98%80b");
 });

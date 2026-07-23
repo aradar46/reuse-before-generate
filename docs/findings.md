@@ -1,194 +1,93 @@
 # Search quality findings
 
-What has actually been measured about this tool's retrieval, and where it
-still falls short. Everything here came from running the thing, not from
-reasoning about it.
+This document records measured live retrieval, not semantic product claims.
+Run `npm run eval -- --diff`; a clean full run may update the baseline with
+`npm run eval -- --diff --save`.
 
-Measure with `npm run eval`. Numbers move between runs because they depend
-on live GitHub ranking, so treat differences under ~0.05 as noise unless a
-specific case changed rank. `test/eval/baseline.json` holds the committed
-scores; `npm run eval -- --diff` compares against them.
+## Baseline (2026-07-23)
 
-## Known gaps
+The committed baseline is one authenticated run of 18 planned searches:
+15 reuse cases, two competition cases, and one deliberately absurd
+true-negative. All required attempted sources completed. Experimental web
+search was attempted for all 18 cases and failed with a challenge response
+in nine; those failures are preserved per case and did not block the save.
 
-- **Python discovery goes through GitHub, not PyPI.** PyPI has no general
-  search API — the XML-RPC one was retired, and the web endpoint returns
-  HTML regardless of what you ask for:
+| pool | recall@5 | recall@10 |
+|---|---:|---:|
+| reusable projects (15 cases) | 0.733 | 0.800 |
+| competing products (2 cases) | 0.500 | 0.500 |
 
-  ```
-  curl -so /dev/null -w '%{content_type}' \
-    'https://pypi.org/search/?q=json+viewer&format=json'
-  # => text/html; charset=utf-8   (same with Accept: application/json)
-  ```
+The true-negative returned four retrieval candidates. That is not reported
+as four semantic false positives: the retrieval layer intentionally returns
+plausible evidence, while the calling agent decides whether it actually
+overlaps the proposal.
 
-  An earlier version worked around this by guessing package names
-  (kebab-case joins of the keywords) against the per-project JSON endpoint.
-  **That lane was removed after measurement: it produced zero winning
-  candidates across 21 variant runs.** It could only find packages already
-  named after their own keywords, so it could never find `requests` from
-  "http client" — the exact query Python users actually make.
+Per-case ranks, evidence sources, formulation hit rates, failures, and pool
+sizes are in `test/eval/baseline.json`.
 
-  The replacement is a GitHub query scoped to `language:python`, which took
-  that case from MISS to rank 1. The language filter also shrinks the
-  result pool enough that small repos rank on merit rather than being
-  buried by high-star noise. Candidates from this lane are tagged `python`
-  so the eval can still attribute wins to it specifically.
+## What source attribution showed
 
-- **"Maintained" heuristic** is recency-only (pushed within the last year),
-  not the fuller signal set (issue response time, contributor count,
-  StarScout fake-star detection) — a natural v1 upgrade. It deliberately
-  does NOT gate on star count: an earlier version required 10+ stars,
-  discarding a real, actively-maintained, genuinely on-point 0-star "GitHub
-  Actions debugger" repo found during live testing. Star count is surfaced
-  to the calling agent as a scoring input instead (see `rerank.ts`), not
-  used as a hard filter.
+A "unique single-source win" means the matched target's fused evidence came
+from exactly one source in this run. The counts were:
 
-- **GitHub search structurally under-serves near-zero-star repos.** Testing
-  showed GitHub's own relevance ranking never surfaces 0-1 star repos in
-  the top 100 results, under any query phrasing, once they compete against
-  anything with real stars — true even with an exact-name search restricted
-  to `stars:0..3`. `searchGitHub()` runs a second, parallel query scoped to
-  `stars:0..3` (plain best-match, deliberately WITHOUT the
-  `in:name,description,readme` qualifier or `sort=updated`, both tested and
-  found to make this lane worse) specifically to catch fresh/tiny repos the
-  primary query buries. This closed part of the gap (confirmed live:
-  surfaces a real 0-star competitor that was invisible before) but not all
-  of it — two other known-real, very small repos with unusual names still
-  don't reliably surface. GitHub's index for tiny/oddly-named repos appears
-  to be a harder, only partially-solved problem; see the `actions-debugger`
-  case in `test/eval/cases.mjs` for the exact scenario and its documented
-  partial-recall expectation.
+| source | unique wins |
+|---|---:|
+| GitHub | 4 |
+| npm | 2 |
+| Hacker News | 1 |
+| web | 1 |
 
-- **Keyword quality is fragile and description-dependent.** A 10-case
-  evaluation found the same failure pattern repeatedly: keywords chosen
-  from the USER's framing of their problem (e.g. "pretty-print"/"colorize",
-  "static site"/"alt-text") often fail to surface the dominant real tool,
-  because maintainers describe their project by function/category instead
-  (e.g. "Terminal JSON viewer & processor", "Test your rendered HTML
-  files"). The fix isn't mechanical — it lives in the `keywords` field's
-  tool description, which tells the calling agent to mentally simulate the
-  target's own README and pull words from that, not from the user's
-  request. A second finding from the same eval: one reasonable keyword swap
-  ("capture" vs "chrome") flipped a result from found to missed. Small
-  perturbations matter more than expected, and the only guardrail is the
-  guidance text. The eval now measures this directly — each case carries
-  multiple keyword variants and reports per-variant rank, so fragility
-  shows up as a low "variant hit-rate" instead of an anecdote.
+Web's unique win was Screen Studio, found in the competition pool at rank
+14. It therefore contributed evidence no other source supplied in this run,
+despite succeeding on only nine of 18 attempts. Product Hunt and the
+ecosystem registries had no unique target win in this baseline.
 
-- **Energy-savings count fires early.** The Wh counter increments as soon
-  as a maintained candidate is found, before the calling agent's relevance
-  scoring — the server has no visibility into that later judgment, so the
-  count is an upper bound, not a confirmed match. As of 0.2.0 it is hidden
-  unless `REUSE_BEFORE_GENERATE_SHOW_ENERGY=1`, because a fabricated
-  order-of-magnitude figure printed to three significant figures was the
-  weakest claim in the output and invited dismissal of the rest.
+The registry cases were mixed: ripgrep ranked 4, RuboCop 10, Monolog 1, and
+picocli was missed. Their winning target evidence was attributed to GitHub
+or fused GitHub/web evidence, not uniquely to the registry. The registry
+lanes may still broaden the candidate set, but this run does not demonstrate
+a unique target contribution from them.
 
-- **Retention is unmeasured** until real installs generate events. The
-  local JSONL plus optional hosted endpoint is the mechanism, not the data.
+## Known limitations
 
-## Eval methodology
+- **Formulation coverage remains fragile.** Winner formulation hit rate was
+  usually one of three, occasionally two of three, and never three of three.
+  Structured queries make this visible; they do not solve vocabulary gaps.
+- **Small, oddly named projects remain hard to retrieve.** The
+  `actions-debugger` and `low-star-niche` targets were missed in this run
+  even though GitHub has a dedicated `stars:0..3` query.
+- **JVM registry discovery needs work.** The picocli target missed while
+  unrelated CLI packages occupied the reuse pool.
+- **Competition evidence is sparse.** Calendly ranked 1, but Screen Studio
+  ranked 14. Two cases are enough to exercise the pool, not enough to claim
+  broad commercial-market coverage.
+- **Web is experimental and brittle.** Half its attempts hit a challenge
+  response. Failures are shown in coverage and do not block an otherwise
+  clean baseline, but web-only discoveries can disappear between runs.
+- **Maintenance is a recency heuristic.** Reuse candidates are accepted
+  when unarchived and active within a year. Issue responsiveness,
+  contributor health, security posture, and project governance are not
+  evaluated.
 
-Scored by **rank of first match**, not pass/fail. Pass/fail cannot tell you
-that a change moved the right answer from position 14 to position 3, which
-is exactly the signal needed when tuning queries.
+## Evaluation method
 
-Reported per run:
+Each case executes one bounded query plan containing category, outcome, and
+synonym formulations. The runner calls the same `prepareCandidates`
+pipeline as the product, then finds a known target by ID, name, or URL only
+within the expected reuse or competition pool.
 
-- `recall@5`, `recall@10`, `recall@all` — fraction of cases whose target
-  appears at or above that rank
-- `MRR` — mean reciprocal rank; rewards ranking the right answer higher,
-  not merely finding it
-- **variant hit-rate** per case — how many keyword phrasings found the
-  target. Low hit-rate with a good best-rank means the case is reachable
-  but fragile.
-- **false positives on true-negative cases** — the `no-real-competitor`
-  case should find nothing. A search that returns plausible-looking matches
-  for everything is as broken as one that returns nothing.
+Reuse and competition recall@5/@10 are separate. The runner also records:
 
-True-negative cases are excluded from the recall denominator, so "correctly
-found nothing" cannot deflate the score.
+- evidence sources on the winning candidate;
+- the fraction of the three planned formulations represented in its
+  evidence queries;
+- unique single-source wins;
+- attempted and failed web availability;
+- retrieval candidate count on the true-negative; and
+- per-source failures without collapsing them into misses.
 
-### A trap worth knowing
-
-GitHub's search endpoint allows **10 requests/minute unauthenticated**, 30
-with a token. Each keyword variant issues 3 GitHub requests (primary lane,
-low-star lane, `language:python` lane). Run the eval too fast and GitHub
-returns 403 — which scores as a recall MISS, indistinguishable from a
-genuine failure to find the target.
-
-This is not hypothetical. Three separate runs of this suite reported
-recall@10 of 0.727 and 0.818 with `github:HTTP 403` scattered through
-them. The real figure, measured authenticated with zero source failures,
-is **1.000**. Every one of those "misses" was throttling.
-
-Two guards now exist:
-
-1. The delay is **derived** from the lane count and rate limit, not
-   hardcoded. Adding the `language:python` lane took requests-per-variant
-   from 2 to 3, which silently invalidated a hand-tuned 12s delay — the
-   exact drift that produced the last set of phantom misses.
-2. The runner **refuses to write a baseline** when any variant hit a
-   source failure. A contaminated baseline is worse than none, because it
-   looks authoritative and poisons every later comparison.
-
-Set `GITHUB_TOKEN` (or `GITHUB_TOKEN=$(gh auth token)`) — it cuts a full
-run from ~8 minutes to ~2.5 and avoids throttling entirely.
-
-## Baseline (2026-07-22)
-
-Authenticated run, 12 cases, zero source failures.
-
-| metric | value |
-|---|---|
-| recall@5 | 0.909 |
-| recall@10 | **1.000** |
-| MRR | 0.750 |
-| false positives on the true-negative case | 0 |
-
-Every case with a real target found it within the top 10; 10 of 11 within
-the top 5. The one outside is `actions-debugger` at rank 6 — the case
-documented above as only partially solved, now reachable via the low-star
-lane.
-
-### What the source attribution showed
-
-The eval records which lane produced each winning candidate. Across 21
-variant runs:
-
-- **The PyPI name-guessing lane produced zero winners.** Every hit came via
-  `github` or `npm`. That measurement is why the lane was deleted rather
-  than kept "because it is nearly free": a source that never contributes is
-  not free, it is two requests per call plus a schema, a code path, and a
-  test to maintain. Python coverage now comes entirely from the
-  `language:python` lane, which took `python-dominant` (find `requests`
-  from "http client") from MISS to rank 1.
-- **The low-star lane earns its request.** `actions-debugger` and
-  `low-star-niche` both resolve through it.
-
-### Both remaining MISSes are the keyword-framing failure, not retrieval
-
-`json-viewer` finds its target at rank 1 with `json,viewer,terminal` and
-MISSes entirely with `json,pretty-print,colorize`. `low-star-niche` finds
-it with `port,kill,process` and MISSes with `tcp,listening,terminal`. In
-both cases the failing variant is the *user's* framing of the problem and
-the succeeding one is the *maintainer's* framing of the tool — exactly the
-pattern described above. This is now a measured 50% variant hit-rate on
-those two cases rather than an anecdote.
-
-The practical implication: recall@10 of 1.0 describes what is reachable
-when the calling agent picks good keywords. It is not what a user gets by
-accident. The guidance text in the `keywords` field is doing real work.
-
-## Experiments
-
-Query-strategy changes measured against the committed baseline. A null
-result is recorded, not discarded — knowing a plausible idea does not help
-is worth as much as knowing one does.
-
-Note that recall@10 is already 1.000, so there is no headroom there; MRR
-(0.750) is the metric with room to move, and it rewards ranking the right
-answer higher rather than merely finding it.
-
-| # | Change | recall@10 | MRR | Kept? |
-|---|--------|-----------|-----|-------|
-| — | baseline (`test/eval/baseline.json`) | 1.000 | 0.750 | — |
+GitHub pacing follows the actual plan: two GitHub requests for a generic
+case and three for an explicit Python case. It uses the authenticated
+30/minute or anonymous 10/minute rate with 25% headroom. A required
+attempted-source failure blocks baseline saving; experimental web failure
+does not. Single-case and mid-run-dist-change saves are refused.

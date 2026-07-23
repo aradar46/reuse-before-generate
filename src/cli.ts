@@ -10,69 +10,99 @@
 
 import { argv as processArgv } from "node:process";
 import { fileURLToPath } from "node:url";
+import type { QueryInput } from "./query-plan.js";
 import { searchAllResults } from "./search.js";
-import { verifyAll } from "./verify.js";
+import { prepareCandidates, type PreparedCandidate } from "./verify.js";
+import { formatCoverage } from "./report.js";
 
 interface Args {
   description: string;
   keywords?: string[];
+  queries?: QueryInput;
 }
 
 export function parseArgs(argv: string[]): Args {
   const args = argv.slice(2);
-  const kwIndex = args.findIndex((a) => a === "--keywords" || a === "-k");
-  if (kwIndex === -1) {
-    return { description: args.join(" ").trim() };
+  const description: string[] = [];
+  const values = new Map<string, string>();
+  const flags = new Map([
+    ["--keywords", "keywords"],
+    ["-k", "keywords"],
+    ["--category", "category"],
+    ["--outcome", "outcome"],
+    ["--synonyms", "synonyms"],
+  ]);
+
+  for (let index = 0; index < args.length; index += 1) {
+    const key = flags.get(args[index]);
+    if (!key) {
+      description.push(args[index]);
+      continue;
+    }
+    const value = args[index + 1];
+    if (value !== undefined && !flags.has(value)) {
+      values.set(key, value.trim());
+      index += 1;
+    }
   }
-  const description = args.slice(0, kwIndex).join(" ").trim();
-  const keywords = (args[kwIndex + 1] ?? "")
+
+  const keywords = (values.get("keywords") ?? "")
     .split(",")
     .map((k) => k.trim())
     .filter(Boolean);
-  return { description, keywords: keywords.length > 0 ? keywords : undefined };
+  const category = values.get("category") ?? "";
+  const outcome = values.get("outcome") ?? "";
+  const synonyms = values.get("synonyms") ?? "";
+  const queries = category && outcome && synonyms
+    ? { category, outcome, synonyms }
+    : undefined;
+
+  return {
+    description: description.join(" ").trim(),
+    keywords: keywords.length > 0 ? keywords : undefined,
+    queries,
+  };
+}
+
+function printCandidates(candidates: readonly PreparedCandidate[]): void {
+  for (const [index, candidate] of candidates.entries()) {
+    const sources = [...new Set(candidate.evidence.map((item) => item.source))];
+    console.log(`${index + 1}. ${candidate.name || candidate.id}`);
+    if (candidate.description) console.log(`   ${candidate.description.slice(0, 160)}`);
+    console.log(`   retrieved via ${sources.join(", ")} · score ${candidate.retrievalScore.toFixed(4)}`);
+    console.log(`   ${candidate.url}`);
+  }
+  if (candidates.length === 0) {
+    console.log("(no candidates retrieved for this section; this does not prove none exist)");
+  }
 }
 
 async function main(): Promise<void> {
-  const { description, keywords } = parseArgs(process.argv);
+  const { description, keywords, queries } = parseArgs(process.argv);
 
   if (!description) {
-    console.error('Usage: npm run check -- "<description>" [--keywords a,b,c]');
+    console.error(
+      'Usage: npm run check -- "<description>" [--keywords a,b,c] [--category "..."] [--outcome "..."] [--synonyms "..."]',
+    );
     process.exit(2);
   }
 
   console.log(`description: ${description}`);
   console.log(`keywords:    ${keywords ? keywords.join(", ") : "(auto-extracted)"}\n`);
 
-  const results = await searchAllResults(description, keywords);
-
-  for (const r of results) {
-    if (r.ok) {
-      console.log(`  ${r.source.padEnd(7)} ${r.value.length} candidate(s)`);
-    } else {
-      console.log(`  ${r.source.padEnd(7)} FAILED — ${r.reason}`);
-    }
-  }
-  console.log();
+  const results = await searchAllResults(description, keywords, queries);
 
   const raw = results.flatMap((r) => (r.ok ? r.value : []));
-  const verified = await verifyAll(raw);
-  const maintained = verified.filter((c) => c.maintained);
-  const dropped = verified.length - maintained.length;
+  const candidates = await prepareCandidates(raw);
+  const reuse = candidates.filter((candidate) => candidate.pool === "reuse");
+  const competition = candidates.filter((candidate) => candidate.pool === "competition");
+  const coverage = formatCoverage(results);
 
-  console.log(`${raw.length} raw, ${maintained.length} maintained (${dropped} filtered out)\n`);
-
-  maintained.forEach((c, i) => {
-    const traction = c.source === "github" ? `${c.stars ?? 0}*` : "-";
-    const rank = String(i + 1).padStart(2, " ");
-    console.log(`${rank}. [${c.source}] ${c.id}  ${traction}`);
-    if (c.description) console.log(`    ${c.description.slice(0, 100)}`);
-    console.log(`    ${c.maintenanceReason}`);
-    console.log(`    ${c.url}`);
-  });
-
-  if (maintained.length === 0) {
-    console.log("(no maintained candidates)");
-  }
+  console.log("Projects you could reuse");
+  printCandidates(reuse);
+  console.log("\nProducts you would compete with");
+  printCandidates(competition);
+  console.log(`\n${coverage.text}`);
 }
 
 // Only run when invoked as a program. Importing this module (as the unit

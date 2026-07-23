@@ -4,28 +4,41 @@ The technical detail behind the one-paragraph summary in the README.
 
 ## The pipeline
 
-1. **Search** (`src/search.ts`) — three lanes run in parallel:
-   - GitHub repo search, itself two queries: a primary relevance query, plus
-     a second scoped to `stars:0..3`. The second exists because GitHub's
-     ranking structurally buries near-zero-star repos once they compete
-     against anything popular — and a brand-new repo doing exactly your job
-     is the most useful duplicate to catch.
-   - npm registry search.
-   - A Python lane: GitHub scoped to `language:python`. The language filter
-     shrinks the result pool enough that small repos rank on merit.
+1. **Plan** (`src/query-plan.ts`) — normalizes exactly three optional
+   formulations supplied by the calling agent: category, outcome, and
+   synonyms. Without them, the legacy description and required keywords
+   fill category and outcome. Ecosystem detection uses only explicit Python,
+   Rust, Ruby, PHP, or JVM signals.
 
-2. **Verify** (`src/verify.ts`) — drops archived repos and anything with no
-   activity in the last year. It deliberately does **not** filter on star
-   count. An earlier version required 10+ stars and was silently discarding
-   real, actively-maintained 0-star matches. Star count is passed to the
-   agent as a scoring signal instead of used as a gate.
+2. **Search** (`src/search.ts`) — executes a bounded plan in parallel.
+   GitHub gets two category queries (general relevance and `stars:0..3`);
+   npm gets at most two unique formulations; GitLab gets category and
+   outcome; Show HN gets at most three; Product Hunt reads its feed once;
+   and experimental web search gets one category query. An explicit Python
+   plan adds one `language:python` GitHub query. Rust, Ruby, PHP, or JVM adds
+   one matching registry query. Duplicate or empty formulations can reduce
+   these counts; nothing expands them.
 
-3. **Re-rank prompt** (`src/rerank.ts`) — builds scoring instructions as
-   plain text. Not an API call.
+3. **Canonicalize and fuse** (`src/canonicalize.ts`, `src/fusion.ts`) —
+   removes tracking parameters, fragments, trailing slashes, `.git`, and
+   `www.` differences before merging observations. Evidence is deduplicated
+   by source, source ID, and query. Rankings are combined with
+   reciprocal-rank fusion: `retrieval score = Σ 1 / (60 + rank)`. A
+   source/query contributes only its best valid rank.
 
-4. **Report** (`src/index.ts`) — returns candidates plus those instructions,
-   naming any source that failed so partial results are never mistaken for
-   complete ones.
+4. **Separate and verify** (`src/verify.ts`) — repository and package
+   evidence goes to **Projects you could reuse** and must be unarchived with
+   activity in the last year. Commercial and unknown product evidence goes
+   to **Products you would compete with** and is not subjected to repository
+   maintenance checks it cannot satisfy. These are evidence pools, not a
+   semantic verdict that the proposal is duplicated.
+
+5. **Re-rank and report** (`src/rerank.ts`, `src/report.ts`) — returns
+   retrieval evidence plus instructions for the calling agent to judge
+   functional overlap. Coverage always names successful and failed sources.
+   Operational source failure prevents an all-clear response. DuckDuckGo is
+   explicitly experimental: its failure is reported but does not erase
+   results from stable sources.
 
 ## Why the server does not call an LLM
 
@@ -44,10 +57,12 @@ decomposing a description into bag-of-words queries — returned 290,351
 keyword noise, not competitors. Real judgment of functional overlap needs a
 model, and the calling agent already is one.
 
-## Why `keywords` is a required input
+## Why keywords are required and formulations are optional
 
-The tool will not run without 3-6 search terms supplied by the calling
-agent. That is deliberate.
+The MCP tool will not run without 3-6 search terms supplied by the calling
+agent. That preserves compatibility and guarantees a usable fallback.
+Category, outcome, and synonym formulations are optional, but when present
+all three are required together and replace the fallback search wording.
 
 The mechanical fallback extractor is measurably weak on non-literal or
 buzzword-heavy descriptions — including this project's own README, which is
@@ -55,17 +70,18 @@ full of "MCP", "agent", and "server", terms too generic to distinguish it
 from unrelated MCP servers. An agent that already understood what the user
 meant produces far better search terms than string-matching can.
 
-Making the field required means that inference step cannot be silently
-skipped.
+The planner never loops until it is satisfied and never calls an LLM
+itself. It executes the fixed source budget above, records the query and
+rank on every evidence item, and leaves semantic judgment in the existing
+agent session.
 
 The field's description also tells the agent to pick the word a *maintainer*
 would use for what their tool IS, rather than the word describing the user's
 problem. This is not cosmetic. A real "pretty JSON in the terminal" tool
 calls itself a "viewer" or "processor", not a "pretty-printer". A real
 static-site link checker says it validates "rendered HTML", not "static
-site alt-text". Searching with the user's words instead of the maintainer's
-is the single most common way this tool misses something real — see
-[findings.md](findings.md) for the measurements.
+site alt-text". Formulations reduce this wording sensitivity without
+pretending to eliminate it; see [findings.md](findings.md).
 
 ## Running it directly looks like a hang
 
@@ -159,25 +175,25 @@ same owner.
 ```bash
 npm test                                              # offline unit tests, ~1s
 npm run check -- "<description>" --keywords a,b,c     # drive the pipeline locally
+npm run check -- "<description>" --category "..." --outcome "..." --synonyms "..."
 npm run eval                                          # scored recall against live APIs
-npm run eval -- --diff                                # compare to the committed baseline
+npm run eval -- --diff --save                         # compare and save one clean full run
 npm run eval -- --case json-viewer                    # iterate on one case
 ```
 
-`npm test` is 71 offline checks that the code does what it claims. It runs
-in about a second and gates every PR.
+`npm test` is the offline suite that gates every PR.
 
 `npm run check` is the fast loop for search-quality work — per-source
-counts, any failures, and the ranked candidates, without needing an agent
-session.
+coverage and retrieved candidates separated into reuse and competition
+pools, without needing an agent session.
 
 `npm run eval` is a different question: not "is it broken" but "is it any
-good". It runs 12 known cases (e.g. "find gitleaks from a description of a
-secret scanner") and reports the rank the right answer came back at.
+good". It runs 18 known cases (e.g. "find gitleaks from a description of a
+secret scanner") and reports the target rank within its expected pool.
 Deliberately **not** part of `npm test`, because it depends on live GitHub
-ranking that drifts for reasons unrelated to this code. It runs weekly in
-CI instead. Set `GITHUB_TOKEN` before running it — unauthenticated runs get
-rate-limited, and a 403 scores identically to a genuine miss.
+ranking that drifts for reasons unrelated to this code. Set `GITHUB_TOKEN`
+before running it. A required source failure blocks baseline saving;
+experimental web failure is recorded but does not.
 
 Running the published `dist/` needs Node 18+. Running the test suite needs
 Node 22.6+, which strips TypeScript from `.test.ts` files natively.

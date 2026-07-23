@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { verifyCandidate } from "../../dist/verify.js";
+import { prepareCandidates, verifyCandidate } from "../../dist/verify.js";
 
 function daysAgo(n: number): string {
   return new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
@@ -93,4 +93,145 @@ test("an archived repo with a good date reports only the archive status", async 
 test("a future date is treated as active, not as an error", async () => {
   const v = await verifyCandidate({ ...base, pushedAt: daysAgo(-2) });
   assert.equal(v.maintained, true);
+});
+
+function rawCandidate(overrides: Record<string, unknown> = {}) {
+  return {
+    source: "github",
+    id: "acme/widget",
+    name: "widget",
+    url: "https://github.com/acme/widget",
+    description: "A useful widget",
+    kind: "open_source",
+    repositoryUrl: "https://github.com/acme/widget",
+    pushedAt: daysAgo(5),
+    evidence: [{
+      source: "github",
+      sourceId: "acme/widget",
+      sourceUrl: "https://github.com/acme/widget",
+      destinationUrl: "https://github.com/acme/widget",
+      title: "widget",
+      snippet: "A useful widget",
+      query: "widget",
+      rank: 2,
+    }],
+    ...overrides,
+  };
+}
+
+test("prepareCandidates drops inactive open-source reuse candidates", async () => {
+  const prepared = await prepareCandidates([
+    rawCandidate({ pushedAt: daysAgo(500) }),
+  ]);
+
+  assert.deepEqual(prepared, []);
+});
+
+test("prepareCandidates retains competition with no activity without inventing maintenance", async () => {
+  const prepared = await prepareCandidates([
+    rawCandidate({
+      source: "producthunt",
+      id: "hosted-widget",
+      url: "https://example.com/widget",
+      repositoryUrl: undefined,
+      pushedAt: undefined,
+      kind: "commercial",
+      description: "Hosted widget with subscription pricing",
+      evidence: [{
+        source: "producthunt",
+        sourceId: "hosted-widget",
+        sourceUrl: "https://producthunt.com/products/widget",
+        destinationUrl: "https://example.com/widget",
+        title: "Hosted widget",
+        snippet: "Subscription pricing",
+        query: "widget",
+        rank: 1,
+      }],
+    }),
+  ]);
+
+  assert.equal(prepared.length, 1);
+  assert.equal(prepared[0]?.pool, "competition");
+  assert.equal("maintained" in prepared[0], false);
+  assert.equal("maintenanceReason" in prepared[0], false);
+});
+
+test("prepareCandidates preserves ranked fields and retrieval-score ordering", async () => {
+  const prepared = await prepareCandidates([
+    rawCandidate(),
+    rawCandidate({
+      source: "web",
+      id: "hosted-widget",
+      url: "https://example.com/widget",
+      repositoryUrl: undefined,
+      kind: "commercial",
+      evidence: [{
+        source: "web",
+        sourceId: "hosted-widget",
+        sourceUrl: "https://example.com/widget",
+        destinationUrl: "https://example.com/widget",
+        title: "Hosted widget",
+        snippet: "Hosted SaaS pricing",
+        query: "widget",
+        rank: 1,
+      }],
+    }),
+  ]);
+
+  assert.deepEqual(
+    prepared.map((candidate) => candidate.canonicalUrl),
+    ["https://example.com/widget", "https://github.com/acme/widget"],
+  );
+  assert.ok(prepared[0].retrievalScore > prepared[1].retrievalScore);
+  assert.equal(prepared[1]?.pool, "reuse");
+  assert.equal(prepared[1] && "maintained" in prepared[1], true);
+});
+
+test("fresh registry activity wins over an old launch date for the same repository", async () => {
+  const repositoryUrl = "https://github.com/acme/widget";
+  const currentActivity = daysAgo(2);
+  const prepared = await prepareCandidates([
+    rawCandidate({
+      source: "hackernews",
+      id: "launch-1",
+      url: repositoryUrl,
+      repositoryUrl: undefined,
+      pushedAt: daysAgo(800),
+      kind: "unknown",
+      evidence: [{
+        source: "hackernews",
+        sourceId: "launch-1",
+        sourceUrl: "https://news.ycombinator.com/item?id=1",
+        destinationUrl: repositoryUrl,
+        title: "Show HN: Widget",
+        snippet: "Widget launch",
+        query: "widget",
+        rank: 1,
+        date: daysAgo(800),
+      }],
+    }),
+    rawCandidate({
+      source: "crates",
+      id: "widget",
+      url: repositoryUrl,
+      repositoryUrl,
+      pushedAt: currentActivity,
+      evidence: [{
+        source: "crates",
+        sourceId: "widget",
+        sourceUrl: "https://crates.io/crates/widget",
+        destinationUrl: repositoryUrl,
+        title: "widget",
+        snippet: "Widget crate",
+        query: "widget",
+        rank: 1,
+        date: currentActivity,
+      }],
+    }),
+  ]);
+
+  assert.equal(prepared.length, 1);
+  assert.equal(prepared[0]?.pool, "reuse");
+  assert.equal(prepared[0]?.pushedAt, currentActivity);
+  assert.equal(prepared[0] && "maintained" in prepared[0], true);
 });
