@@ -53,3 +53,33 @@ export const NpmSearchResponse = z.object({
 });
 
 export type GitHubSearchItemT = z.infer<typeof GitHubSearchItem>;
+
+export const GitLabSearchResponse = z.array(
+  z.object({
+    id: z.number(),
+    name_with_namespace: z.string(),
+    web_url: z.string(),
+    description: z.string().nullable(),
+    star_count: z.number(),
+    last_activity_at: z.string(),
+    // `simple=true` currently omits this field from GitLab's live response.
+    // Preserve the transport-neutral boolean without rejecting that shape.
+    archived: z.boolean().optional().default(false),
+  }),
+);
+
+export const HackerNewsSearchResponse = z.object({
+  hits: z.array(
+    z.object({
+      objectID: z.string(),
+      title: z.string().nullable(),
+      url: z.string().nullable().optional(),
+      story_text: z.string().nullable().optional(),
+      created_at: z.string(),
+      points: z.number().nullable().optional(),
+    }),
+  ),
+});
+
+export type GitLabSearchItemT = z.infer<typeof GitLabSearchResponse>[number];
+export type HackerNewsSearchHitT = z.infer<typeof HackerNewsSearchResponse>["hits"][number];
