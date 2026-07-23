@@ -217,6 +217,7 @@ export function mergeCandidates(candidates: readonly RawCandidate[]): RawCandida
   for (const [index, candidate] of normalized.entries()) {
     const identities = new Set<string>();
     addAlias(identities, candidate.repositoryUrl);
+    addAlias(identities, candidate.homepageUrl);
     addAlias(identities, candidate.packageUrl);
     addAlias(identities, candidate.url);
     for (const item of candidate.evidence) addAlias(identities, item.destinationUrl);
@@ -246,7 +247,12 @@ export function mergeCandidates(candidates: readonly RawCandidate[]): RawCandida
       ...current,
       kind,
       repositoryUrl: current.repositoryUrl ?? candidate.repositoryUrl,
+      homepageUrl: current.homepageUrl ?? candidate.homepageUrl,
       packageUrl: current.packageUrl ?? candidate.packageUrl,
+      topics: [...new Set([
+        ...(current.topics ?? []),
+        ...(candidate.topics ?? []),
+      ])],
       stars: richerNumber(current.stars, candidate.stars),
       traction: current.traction ?? candidate.traction,
       pushedAt: freshestPushedAt(current.pushedAt, candidate),

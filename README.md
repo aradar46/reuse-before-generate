@@ -71,7 +71,12 @@ Results receive a transparent local prescore before the calling agent makes
 the final semantic judgment. It rewards workflow and constraint fit and
 penalizes predictable noise such as listicles, integration components, and
 npm-only packages returned for application requests. For library requests,
-npm remains first-class evidence.
+npm remains first-class evidence. The final shortlist deliberately reserves
+room for both an established, relevant project and a promising niche project;
+raw popularity alone cannot earn the authority slot. Official homepages also
+link open-source projects to their commercial product identity, so one entity
+can correctly appear in both sections. Returned evidence is capped after
+ranking to keep the agent context focused.
 
 Every response includes **Search coverage**, naming both searched and
 unavailable sources. An empty result is reported cautiously: it means no

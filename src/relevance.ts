@@ -11,10 +11,36 @@ const STOP_WORDS = new Set([
 const COMPONENT_PATTERN =
   /\b(?:adapter|client|component|connector|extension|integration|middleware|plugin|sdk|template|theme|widget|wrapper)\b/i;
 const INFORMATIONAL_PATTERN =
-  /\b(?:best \d+|comparison|guide|how to|reddit|top \d+|what is|youtube)\b/i;
+  /\b(?:alternatives?|best(?:\s+\d+)?|comparison|guide|how to|quora|reddit|reviews?|stackexchange|top(?:\s+\d+)?|what is|youtube)\b/i;
 const AWESOME_PATTERN = /\bawesome[- ]|\/awesome[-/]/i;
+const INFORMATIONAL_PATH_PATTERN =
+  /\/(?:article|articles|blog|blogs|guide|guides|post|posts|questions?|reviews?)(?:\/|$)/i;
 
-function tokens(value: string): string[] {
+function normalizedToken(token: string): string {
+  if (token.length > 5 && token.endsWith("ies")) {
+    return `${token.slice(0, -3)}y`;
+  }
+  if (token.length > 5 && token.endsWith("ing")) {
+    const stem = token.slice(0, -3).replace(/([b-df-hj-np-tv-z])\1$/, "$1");
+    return stem;
+  }
+  if (token.length > 4 && token.endsWith("ied")) {
+    return `${token.slice(0, -3)}y`;
+  }
+  if (token.length > 4 && token.endsWith("ed")) {
+    return token.slice(0, -2).replace(/([b-df-hj-np-tv-z])\1$/, "$1");
+  }
+  if (token.length > 4 && token.endsWith("ly")) return token.slice(0, -2);
+  if (token.length > 4 && /(?:ches|shes|xes|zes|sses)$/.test(token)) {
+    return token.slice(0, -2);
+  }
+  if (token.length > 3 && token.endsWith("s") && !token.endsWith("ss")) {
+    return token.slice(0, -1);
+  }
+  return token;
+}
+
+function exactTokens(value: string): string[] {
   return value
     .toLocaleLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
@@ -22,8 +48,26 @@ function tokens(value: string): string[] {
     .filter((token) => token.length > 1 && !STOP_WORDS.has(token));
 }
 
-function coverage(needle: string, haystack: Set<string>): number {
-  const wanted = [...new Set(tokens(needle))];
+function tokens(
+  value: string,
+  normalize = false,
+  includeCompounds = false,
+): string[] {
+  const exact = exactTokens(value);
+  const result = normalize ? exact.map(normalizedToken) : exact;
+  if (!includeCompounds) return result;
+  return [
+    ...result,
+    ...result.slice(0, -1).map((token, index) => `${token}${result[index + 1]}`),
+  ];
+}
+
+function coverage(
+  needle: string,
+  haystack: Set<string>,
+  normalize = false,
+): number {
+  const wanted = [...new Set(tokens(needle, normalize))];
   if (wanted.length === 0) return 0;
   return wanted.filter((token) => haystack.has(token)).length / wanted.length;
 }
@@ -37,6 +81,8 @@ function candidateText(candidate: RankedCandidate): string {
     candidate.name,
     candidate.description,
     candidate.url,
+    candidate.homepageUrl ?? "",
+    ...(candidate.topics ?? []),
     ...candidate.evidence.flatMap((item) => [item.title, item.snippet]),
   ].join(" ");
 }
@@ -75,10 +121,11 @@ export function rankCandidates<T extends RankedCandidate>(
   candidates: readonly T[],
   plan: QueryPlan,
 ): T[] {
-  return candidates
+  const ranked = candidates
     .map((candidate) => {
       const text = candidateText(candidate);
       const haystack = new Set(tokens(text));
+      const normalizedHaystack = new Set(tokens(text, true, true));
       const signals: string[] = [];
       const penalties: string[] = [];
       const sources = evidenceSources(candidate);
@@ -91,8 +138,25 @@ export function rankCandidates<T extends RankedCandidate>(
       const synonymCoverage = plan.formulations.synonyms
         ? coverage(plan.formulations.synonyms, haystack)
         : 0;
+      const normalizedCategoryCoverage = coverage(
+        plan.formulations.category,
+        normalizedHaystack,
+        true,
+      );
+      const normalizedOutcomeCoverage = coverage(
+        plan.formulations.outcome,
+        normalizedHaystack,
+        true,
+      );
+      const normalizedSynonymCoverage = plan.formulations.synonyms
+        ? coverage(plan.formulations.synonyms, normalizedHaystack, true)
+        : 0;
       if (categoryCoverage >= 0.5) {
         signals.push(`category coverage: ${Math.round(categoryCoverage * 100)}%`);
+      } else if (normalizedCategoryCoverage >= 0.5) {
+        signals.push(
+          `normalized category coverage: ${Math.round(normalizedCategoryCoverage * 100)}%`,
+        );
       }
       if (Math.max(outcomeCoverage, synonymCoverage) >= 0.4) {
         signals.push(
@@ -133,8 +197,19 @@ export function rankCandidates<T extends RankedCandidate>(
         penalty += 0.22;
         penalties.push("component or integration shape");
       }
-      if (INFORMATIONAL_PATTERN.test(text)) {
-        penalty += 0.4;
+      const informationalIdentity = [
+        candidate.name,
+        candidate.url,
+        ...candidate.evidence.map((item) => item.title),
+      ].join(" ");
+      if (
+        !repositoryEvidence
+        && (
+          INFORMATIONAL_PATTERN.test(informationalIdentity)
+          || INFORMATIONAL_PATH_PATTERN.test(candidate.url)
+        )
+      ) {
+        penalty += 0.65;
         penalties.push("informational page rather than a project or product");
       }
       if (AWESOME_PATTERN.test(text)) {
@@ -150,6 +225,17 @@ export function rankCandidates<T extends RankedCandidate>(
       const popularityContext = candidate.stars === undefined
         ? 0
         : bounded(Math.log10(candidate.stars + 1) * 0.01, 0, 0.04);
+      const workflowCoverage = Math.max(outcomeCoverage, synonymCoverage);
+      const normalizedWorkflowCoverage = Math.max(
+        normalizedOutcomeCoverage,
+        normalizedSynonymCoverage,
+      );
+      const semanticFit =
+        normalizedCategoryCoverage * 0.55
+        + normalizedWorkflowCoverage * 0.45;
+      const authorityScore = candidate.stars === undefined
+        ? 0
+        : bounded(Math.log10(candidate.stars + 1) / 5, 0, 1);
       const score = bounded(
         retrieval
           + categoryCoverage * 0.34
@@ -167,6 +253,8 @@ export function rankCandidates<T extends RankedCandidate>(
       return {
         ...candidate,
         localScore: Number(score.toFixed(4)),
+        semanticFit: Number(semanticFit.toFixed(4)),
+        authorityScore: Number(authorityScore.toFixed(4)),
         rankingSignals: signals,
         rankingPenalties: penalties,
         discoveryTier: tier(candidate, score, penalties),
@@ -175,4 +263,64 @@ export function rankCandidates<T extends RankedCandidate>(
     .sort((left, right) =>
       (right.localScore ?? 0) - (left.localScore ?? 0)
       || right.retrievalScore - left.retrievalScore);
+
+  const reuse = ranked.filter((candidate) => candidate.pool === "reuse");
+  const competition = ranked.filter(
+    (candidate) => candidate.pool === "competition",
+  );
+  return [
+    ...diversifyReuse(reuse, plan),
+    ...competition,
+  ];
+}
+
+function diversifyReuse<T extends RankedCandidate>(
+  candidates: readonly T[],
+  plan: QueryPlan,
+): T[] {
+  if (candidates.length <= 5 || plan.artifactType === "library") {
+    return [...candidates];
+  }
+  const selected: T[] = candidates.slice(0, 3);
+  const selectedUrls = new Set(selected.map((candidate) => candidate.canonicalUrl));
+  const eligible = candidates.slice(0, 25).filter((candidate) =>
+    (candidate.stars ?? 0) >= 1_000
+    && (
+      (candidate.semanticFit ?? 0) >= 0.35
+      || (candidate.localScore ?? 0) >= 0.45
+    )
+    && (candidate.rankingPenalties?.length ?? 0) === 0);
+  const authority = [...eligible].sort((left, right) =>
+    (right.authorityScore ?? 0) - (left.authorityScore ?? 0)
+    || (right.localScore ?? 0) - (left.localScore ?? 0))[0];
+  if (authority && !selectedUrls.has(authority.canonicalUrl)) {
+    selected.push({
+      ...authority,
+      rankingSignals: [...(authority.rankingSignals ?? []), "authority slot"],
+    });
+    selectedUrls.add(authority.canonicalUrl);
+  }
+
+  const niche = candidates.slice(0, 25).find((candidate) =>
+    candidate.discoveryTier === "promising_niche"
+    && (candidate.localScore ?? 0) >= 0.45
+    && !selectedUrls.has(candidate.canonicalUrl));
+  if (niche) {
+    selected.push({
+      ...niche,
+      rankingSignals: [...(niche.rankingSignals ?? []), "niche slot"],
+    });
+    selectedUrls.add(niche.canonicalUrl);
+  }
+  for (const candidate of candidates) {
+    if (selected.length >= 5) break;
+    if (selectedUrls.has(candidate.canonicalUrl)) continue;
+    selected.push(candidate);
+    selectedUrls.add(candidate.canonicalUrl);
+  }
+  return [
+    ...selected,
+    ...candidates.filter((candidate) =>
+      !selectedUrls.has(candidate.canonicalUrl)),
+  ];
 }

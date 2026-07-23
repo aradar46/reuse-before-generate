@@ -6,7 +6,7 @@ import { err, ok, unavailable, type Result } from "../result.js";
 
 const SEARCH_URL = "https://api.tavily.com/search";
 const TIMEOUT_MS = 8_000;
-const USER_AGENT = "reuse-before-generate-mcp/0.5";
+const USER_AGENT = "reuse-before-generate-mcp/0.6";
 
 const TavilySearchResponse = z.object({
   results: z.array(z.object({
@@ -191,7 +191,8 @@ export async function searchTavilyDiscoveryResult(
   }
 
   const reuseQuery = `${category} open source self-hosted`;
-  const productQuery = `${synonyms?.trim() || category} software product`;
+  const productQuery =
+    `${synonyms?.trim() || category} official software pricing`;
   const results = await Promise.all([
     searchTavilyResult(reuseQuery, 5),
     searchTavilyResult(productQuery, 5),

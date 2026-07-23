@@ -3,7 +3,7 @@
   "name": "io.github.aradar46/reuse-before-generate",
   "title": "Reuse Before Generate",
   "description": "Checks for reusable projects and competing products before your agent builds. Searches repositories, registries, launch feeds, and the web.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "repository": {
     "url": "https://github.com/aradar46/reuse-before-generate",
     "source": "github"
@@ -13,7 +13,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "reuse-before-generate",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "transport": {
         "type": "stdio"
       },

@@ -229,6 +229,8 @@ test("GitHub, npm, and Python mappings include actual ranked evidence and URLs",
         stargazers_count: 7,
         pushed_at: "2026-07-20T00:00:00Z",
         archived: false,
+        homepage: "https://termglass.example",
+        topics: ["json-viewer", "terminal"],
       }],
     });
   });
@@ -243,6 +245,8 @@ test("GitHub, npm, and Python mappings include actual ranked evidence and URLs",
   if (!github.ok || !npm.ok || !python.ok) return;
   assert.equal(github.value[0]?.kind, "open_source");
   assert.equal(github.value[0]?.repositoryUrl, "https://github.com/acme/termglass");
+  assert.equal(github.value[0]?.homepageUrl, "https://termglass.example");
+  assert.deepEqual(github.value[0]?.topics, ["json-viewer", "terminal"]);
   assert.deepEqual(
     github.value[0]?.evidence.map((evidence) => [evidence.query, evidence.rank]),
     [

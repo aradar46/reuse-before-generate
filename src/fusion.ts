@@ -9,6 +9,14 @@ function candidateUrl(candidate: RawCandidate): string {
     ?? candidate.url;
 }
 
+function hasDirectMarketEvidence(candidate: RawCandidate): boolean {
+  if (!candidate.homepageUrl) return false;
+  const homepage = canonicalizeUrl(candidate.homepageUrl);
+  return candidate.evidence.some((item) =>
+    (item.source === "web" || item.source === "hackernews")
+    && canonicalizeUrl(item.destinationUrl) === homepage);
+}
+
 function rrfScore(evidence: readonly Evidence[]): number {
   const bestRanks = new Map<string, number>();
   for (const item of evidence) {
@@ -25,14 +33,29 @@ function rrfScore(evidence: readonly Evidence[]): number {
 /** Merges duplicate observations, scores independent retrieval evidence, and pools results. */
 export function fuseCandidates(candidates: readonly RawCandidate[]): RankedCandidate[] {
   return mergeCandidates(candidates)
-    .map((candidate) => {
+    .flatMap((candidate) => {
       const canonicalUrl = canonicalizeUrl(candidateUrl(candidate));
-      return {
+      const reuseOrCompetition = {
         ...candidate,
         canonicalUrl,
         pool: candidate.kind === "open_source" ? "reuse" : "competition",
         retrievalScore: rrfScore(candidate.evidence),
       } satisfies RankedCandidate;
+      if (
+        candidate.kind !== "open_source"
+        || !hasDirectMarketEvidence(candidate)
+      ) {
+        return [reuseOrCompetition];
+      }
+      return [
+        reuseOrCompetition,
+        {
+          ...reuseOrCompetition,
+          url: candidate.homepageUrl ?? candidate.url,
+          canonicalUrl: canonicalizeUrl(candidate.homepageUrl ?? candidate.url),
+          pool: "competition" as const,
+        },
+      ];
     })
     .sort((left, right) =>
       right.retrievalScore - left.retrievalScore

@@ -172,3 +172,33 @@ test("rerank prompt contains bounded adversarial fields only as untrusted JSON d
   assert.doesNotMatch(stored.name, /[\u0000-\u001f\u007f-\u009f]/);
   assert.doesNotMatch(prompt, /\\u0000|\\u001b|\\u0007/);
 });
+
+test("rerank prompt compacts evidence after ranking while preserving both pools", () => {
+  const manyReuse = Array.from({ length: 20 }, (_, index) => ({
+    ...reuse,
+    id: `reuse-${index + 1}`,
+    name: `Reuse ${index + 1}`,
+    canonicalUrl: `https://github.com/acme/reuse-${index + 1}`,
+    url: `https://github.com/acme/reuse-${index + 1}`,
+  }));
+  const manyCompetition = Array.from({ length: 15 }, (_, index) => ({
+    ...competition,
+    id: `competition-${index + 1}`,
+    name: `Competition ${index + 1}`,
+    canonicalUrl: `https://product-${index + 1}.example`,
+    url: `https://product-${index + 1}.example`,
+  }));
+
+  const data = structuredEvidence(buildRerankPrompt(
+    "automate widgets",
+    [...manyReuse, ...manyCompetition],
+  ));
+
+  assert.equal(data["Projects you could reuse"].length, 15);
+  assert.equal(data["Products you would compete with"].length, 10);
+  assert.equal(data["Projects you could reuse"][0].id, "reuse-1");
+  assert.equal(
+    data["Products you would compete with"][0].id,
+    "competition-1",
+  );
+});

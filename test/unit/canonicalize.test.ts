@@ -278,3 +278,37 @@ test("mergeCandidates joins transitive repository, package, and evidence aliases
   assert.equal(merged[0].evidence.length, 3);
   assert.equal(merged[0].kind, "open_source");
 });
+
+test("mergeCandidates joins an official homepage to its repository identity", () => {
+  const merged = mergeCandidates([
+    candidate({
+      repositoryUrl: "https://github.com/acme/widget",
+      homepageUrl: "https://widget.example",
+      kind: "open_source",
+    }),
+    candidate({
+      source: "web",
+      id: "https://widget.example",
+      url: "https://widget.example/",
+      description: "Hosted Widget product",
+      kind: "commercial",
+      evidence: [{
+        source: "web",
+        sourceId: "https://widget.example",
+        sourceUrl: "https://widget.example",
+        destinationUrl: "https://widget.example",
+        title: "Widget",
+        snippet: "Hosted Widget product",
+        query: "widget software product",
+        rank: 1,
+      }],
+    }),
+  ]);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0]?.homepageUrl, "https://widget.example");
+  assert.deepEqual(
+    [...new Set(merged[0]?.evidence.map((item) => item.source))],
+    ["github", "web"],
+  );
+});

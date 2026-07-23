@@ -12,6 +12,7 @@ function candidate(
   description: string,
   queries: string[],
   stars = 0,
+  rank = 1,
 ): RawCandidate {
   const url = source === "npm"
     ? `https://www.npmjs.com/package/${name}`
@@ -35,7 +36,7 @@ function candidate(
       title: name,
       snippet: description,
       query,
-      rank: 1,
+      rank,
       date: ACTIVE,
     })),
   };
@@ -149,4 +150,101 @@ test("informational pages and component-shaped results expose transparent penalt
 
   assert.ok(prepared[0]?.rankingPenalties?.some((item) =>
     item.includes("component or integration")));
+});
+
+test("word normalization recognizes plural and inflected README language", async () => {
+  const plan = buildQueryPlan("Scan Git repositories", [], {
+    category: "repository secret detection",
+    outcome: "find leaked credentials in Git history",
+    synonyms: "Git secret scanner",
+    artifactType: "cli",
+  });
+  const [gitleaks] = await prepareCandidates([
+    candidate(
+      "github",
+      "gitleaks",
+      "Find secrets and leaked credentials in Git repositories",
+      ["repository secret detection"],
+      28_000,
+      14,
+    ),
+  ], plan);
+
+  assert.ok(gitleaks?.rankingSignals?.includes(
+    "normalized category coverage: 67%",
+  ));
+  assert.ok((gitleaks?.semanticFit ?? 0) > 0.5);
+});
+
+test("top five reserves authority and niche without promoting irrelevant popularity", async () => {
+  const plan = buildQueryPlan("Scan Git repositories", [], {
+    category: "repository secret detection",
+    outcome: "find leaked credentials in Git history",
+    synonyms: "Git secret scanner",
+    artifactType: "cli",
+  });
+  const raw = Array.from({ length: 5 }, (_, index) =>
+    candidate(
+      "github",
+      `niche-${index + 1}`,
+      "Repository secret detection that finds leaked credentials in Git history",
+      ["repository secret detection"],
+      index,
+    ));
+  raw.push(candidate(
+    "github",
+    "gitleaks",
+    "Find secrets and leaked credentials in Git repositories",
+    ["repository secret detection"],
+    28_000,
+    14,
+  ));
+  raw.push(candidate(
+    "github",
+    "popular-video-downloader",
+    "Popular command-line video downloader",
+    ["repository secret detection"],
+    200_000,
+    2,
+  ));
+
+  const prepared = await prepareCandidates(raw, plan);
+  const topFive = prepared.slice(0, 5).map((item) => item.name);
+
+  assert.ok(topFive.includes("gitleaks"));
+  assert.equal(topFive.includes("popular-video-downloader"), false);
+  assert.ok(topFive.some((name) => name.startsWith("niche-")));
+  assert.ok(prepared.find((item) => item.name === "gitleaks")
+    ?.rankingSignals?.includes("authority slot"));
+});
+
+test("reviews and best-of pages receive an informational penalty", async () => {
+  const plan = buildQueryPlan("Personal CRM", [], {
+    category: "personal CRM",
+    outcome: "manage relationships",
+    synonyms: "contact organizer",
+    artifactType: "application",
+  });
+  const [review] = await prepareCandidates([{
+    source: "web",
+    id: "https://example.com/blog/best-personal-crm",
+    name: "A Review of the Best Personal CRM Tools",
+    url: "https://example.com/blog/best-personal-crm",
+    description: "Reviews and alternatives for personal CRM products",
+    kind: "unknown",
+    evidence: [{
+      source: "web",
+      sourceId: "review",
+      sourceUrl: "https://example.com/blog/best-personal-crm",
+      destinationUrl: "https://example.com/blog/best-personal-crm",
+      title: "A Review of the Best Personal CRM Tools",
+      snippet: "Reviews and alternatives",
+      query: "personal CRM software product",
+      rank: 1,
+    }],
+  }], plan);
+
+  assert.ok(review?.rankingPenalties?.some((item) =>
+    item.includes("informational page")));
+  assert.ok((review?.localScore ?? 0) < 0);
 });

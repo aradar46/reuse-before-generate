@@ -23,6 +23,8 @@ export const GitHubSearchItem = z.object({
   stargazers_count: z.number(),
   pushed_at: z.string(),
   archived: z.boolean(),
+  homepage: z.string().nullable().optional(),
+  topics: z.array(z.string()).optional(),
 });
 
 export const GitHubSearchResponse = z.object({

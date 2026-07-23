@@ -162,3 +162,34 @@ test("fuseCandidates ignores zero, negative, and non-finite ranks", () => {
 
   assert.equal(result.retrievalScore, 0);
 });
+
+test("an open-source project with direct market evidence appears in both pools", () => {
+  const result = fuseCandidates([
+    candidate({
+      kind: "open_source",
+      homepageUrl: "https://widget.example",
+    }),
+    candidate({
+      source: "web",
+      id: "https://widget.example",
+      url: "https://widget.example",
+      description: "Hosted Widget product",
+      kind: "commercial",
+      evidence: [{
+        source: "web",
+        sourceId: "https://widget.example",
+        sourceUrl: "https://widget.example",
+        destinationUrl: "https://widget.example",
+        title: "Widget",
+        snippet: "Hosted Widget product",
+        query: "widget software product",
+        rank: 1,
+      }],
+    }),
+  ]);
+
+  assert.deepEqual(result.map((item) => item.pool).sort(), [
+    "competition",
+    "reuse",
+  ]);
+});

@@ -30,6 +30,9 @@ The technical detail behind the one-paragraph summary in the README.
    by source, source ID, and query. Rankings are combined with
    reciprocal-rank fusion: `retrieval score = Σ 1 / (60 + rank)`. A
    source/query contributes only its best valid rank.
+   GitHub homepage metadata joins official product pages to their repository
+   identity. A project with direct market evidence can appear in both pools:
+   reusable code and a product the proposal would compete with.
 
 4. **Separate and verify** (`src/verify.ts`) — repository and package
    evidence goes to **Projects you could reuse** and must be unarchived with
@@ -41,9 +44,13 @@ The technical detail behind the one-paragraph summary in the README.
 5. **Prescore, re-rank, and report** (`src/relevance.ts`, `src/rerank.ts`,
    `src/report.ts`) — applies a deterministic, inspectable ranking correction
    for intent coverage, lane agreement, artifact fit, and common retrieval
-   noise. It returns those signals with the evidence; the calling agent still
-   judges functional overlap. Coverage separately names searched,
-   unavailable, and failed sources.
+   noise. Reuse ranking reserves top-five capacity for semantic fit,
+   established authority, and a low-star niche result without treating stars
+   as relevance. Article-like web pages move behind direct product evidence.
+   The evidence passed to the caller is capped at 15 reuse and 10 competition
+   candidates after ranking. It returns the ranking signals with the evidence;
+   the calling agent still judges functional overlap. Coverage separately
+   names searched, unavailable, and failed sources.
 
 ## Why the server does not call an LLM
 

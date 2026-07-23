@@ -23,6 +23,23 @@ test("GitHubSearchResponse accepts a well-formed payload", () => {
   assert.equal(parsed.success, true);
 });
 
+test("GitHubSearchResponse accepts homepage and topic identity metadata", () => {
+  const result = GitHubSearchResponse.safeParse({
+    items: [{
+      full_name: "acme/widget",
+      html_url: "https://github.com/acme/widget",
+      description: "A widget",
+      stargazers_count: 10,
+      pushed_at: "2026-07-22T00:00:00Z",
+      archived: false,
+      homepage: "https://widget.example",
+      topics: ["widget-management", "self-hosted"],
+    }],
+  });
+
+  assert.equal(result.success, true);
+});
+
 test("GitHubSearchResponse accepts a null description", () => {
   const parsed = GitHubSearchResponse.safeParse({
     items: [

@@ -35,7 +35,9 @@ export interface RawCandidate {
   kind: CandidateKind;
   evidence: Evidence[];
   repositoryUrl?: string;
+  homepageUrl?: string;
   packageUrl?: string;
+  topics?: string[];
   traction?: string;
 }
 
@@ -44,6 +46,8 @@ export interface RankedCandidate extends RawCandidate {
   pool: ResultPool;
   retrievalScore: number;
   localScore?: number;
+  semanticFit?: number;
+  authorityScore?: number;
   rankingSignals?: string[];
   rankingPenalties?: string[];
   discoveryTier?:

@@ -180,7 +180,7 @@ test("Tavily discovery uses separate bounded reuse and product formulations", as
     bodies.map((body) => [body.query, body.max_results]),
     [
       ["personal relationship manager open source self-hosted", 5],
-      ["personal CRM contact organizer software product", 5],
+      ["personal CRM contact organizer official software pricing", 5],
     ],
   );
 });

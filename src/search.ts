@@ -21,7 +21,7 @@ import { searchTavilyDiscoveryResult } from "./sources/tavily.js";
 
 export type { RawCandidate } from "./candidate.js";
 
-const USER_AGENT = "reuse-before-generate-mcp/0.5";
+const USER_AGENT = "reuse-before-generate-mcp/0.6";
 const GITHUB_API = "https://api.github.com";
 const githubScheduler = new GitHubRequestScheduler();
 
@@ -181,6 +181,8 @@ function toGitHubCandidate(
     archived: item.archived,
     kind: "open_source",
     repositoryUrl: item.html_url,
+    ...(item.homepage ? { homepageUrl: item.homepage } : {}),
+    ...(item.topics && item.topics.length > 0 ? { topics: item.topics } : {}),
     evidence: [
       {
         source,
