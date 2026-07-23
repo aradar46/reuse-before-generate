@@ -121,3 +121,39 @@ test("Tavily isolates HTTP and response-shape failures", async (context) => {
     if (!result.ok) assert.equal(result.reason, "unexpected response shape");
   });
 });
+
+test("Tavily preserves nested GitLab namespaces when fetching repository activity", async () => {
+  process.env.TAVILY_API_KEY = "tvly-test-secret";
+  const requested: string[] = [];
+  setFetcher(async (url) => {
+    requested.push(String(url));
+    if (String(url) === "https://api.tavily.com/search") {
+      return Response.json({
+        results: [{
+          title: "Nested project",
+          url: "https://gitlab.com/acme/platform/widget/-/issues",
+          content: "Open-source widget.",
+          score: 0.8,
+        }],
+      });
+    }
+    return Response.json({
+      last_activity_at: "2026-07-22T12:00:00Z",
+      archived: false,
+      star_count: 12,
+    });
+  });
+
+  const result = await searchTavilyResult("widget");
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.ok(requested.includes(
+    "https://gitlab.com/api/v4/projects/acme%2Fplatform%2Fwidget",
+  ));
+  assert.equal(
+    result.value[0]?.repositoryUrl,
+    "https://gitlab.com/acme/platform/widget",
+  );
+  assert.equal(result.value[0]?.pushedAt, "2026-07-22T12:00:00Z");
+});

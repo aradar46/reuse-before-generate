@@ -34,17 +34,23 @@ function repositoryReference(value: string): RepositoryReference | undefined {
     const hostname = url.hostname.toLowerCase().replace(/^www\./, "");
     const pathParts = url.pathname.split("/").filter(Boolean);
     if (pathParts.length < 2) return undefined;
-    const repositoryPath = `${pathParts[0]}/${pathParts[1]}`;
     if (hostname === "github.com") {
+      const repositoryPath = `${pathParts[0]}/${pathParts[1]}`;
       return {
-        url: value,
+        url: `https://github.com/${repositoryPath}`,
         apiUrl: `https://api.github.com/repos/${repositoryPath}`,
         provider: "github",
       };
     }
     if (hostname === "gitlab.com") {
+      const separator = pathParts.indexOf("-");
+      const projectParts = separator === -1
+        ? pathParts
+        : pathParts.slice(0, separator);
+      if (projectParts.length < 2) return undefined;
+      const repositoryPath = projectParts.join("/");
       return {
-        url: value,
+        url: `https://gitlab.com/${repositoryPath}`,
         apiUrl: `https://gitlab.com/api/v4/projects/${encodeURIComponent(repositoryPath)}`,
         provider: "gitlab",
       };
