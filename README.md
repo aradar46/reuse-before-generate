@@ -51,6 +51,12 @@ No API key. No account. Nothing to configure.
 
 ```bash
 claude mcp add reuse-before-generate -- npx -y reuse-before-generate
+
+```
+or install it to user scope so it loads everywhere:
+```bash
+# claude mcp remove reuse-before-generate
+claude mcp add -s user reuse-before-generate -- npx -y reuse-before-generate
 ```
 
 Then start a **new** session and try it on an idea of your own — the one
