@@ -62,9 +62,7 @@ export const GitLabSearchResponse = z.array(
     description: z.string().nullable(),
     star_count: z.number(),
     last_activity_at: z.string(),
-    // `simple=true` currently omits this field from GitLab's live response.
-    // Preserve the transport-neutral boolean without rejecting that shape.
-    archived: z.boolean().optional().default(false),
+    archived: z.boolean(),
   }),
 );
 

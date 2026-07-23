@@ -79,6 +79,27 @@ test("DuckDuckGo distinguishes known no-results pages from markup drift", () => 
   );
 });
 
+test("DuckDuckGo fails the whole page when a recognized result loses href", async () => {
+  assert.deepEqual(
+    parseDuckDuckGoHtml(await fixture("changed-href.html"), "query"),
+    { ok: false, source: "web", reason: "unexpected response shape" },
+  );
+});
+
+test("DuckDuckGo fails the whole page when a recognized result loses its snippet", async () => {
+  assert.deepEqual(
+    parseDuckDuckGoHtml(await fixture("missing-snippet.html"), "query"),
+    { ok: false, source: "web", reason: "unexpected response shape" },
+  );
+});
+
+test("DuckDuckGo fails instead of returning a partial page when a result anchor changes", async () => {
+  assert.deepEqual(
+    parseDuckDuckGoHtml(await fixture("changed-result-anchor.html"), "query"),
+    { ok: false, source: "web", reason: "unexpected response shape" },
+  );
+});
+
 test("web search sends exactly the category and Product Hunt queries", async () => {
   const urls: string[] = [];
   const hadSignals: boolean[] = [];

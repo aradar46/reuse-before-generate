@@ -35,7 +35,7 @@ function cleanText(value: string): string {
 
 function attribute(attributes: string, name: string): string | undefined {
   const match = new RegExp(
-    `\\b${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`,
+    `(?:^|\\s)${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`,
     "i",
   ).exec(attributes);
   return match?.[2];
@@ -49,13 +49,18 @@ function hasClass(attributes: string, className: string): boolean {
 function destinationFromHref(href: string): string | undefined {
   try {
     const resolved = new URL(decodeHtml(href), "https://duckduckgo.com");
+    let destination = resolved;
     if (
       resolved.hostname.endsWith("duckduckgo.com") &&
       resolved.pathname.startsWith("/l/")
     ) {
-      return resolved.searchParams.get("uddg") ?? undefined;
+      const wrapped = resolved.searchParams.get("uddg");
+      if (!wrapped) return undefined;
+      destination = new URL(wrapped);
     }
-    return resolved.href;
+    return destination.protocol === "http:" || destination.protocol === "https:"
+      ? destination.href
+      : undefined;
   } catch {
     return undefined;
   }
@@ -84,7 +89,17 @@ function resultAnchors(html: string): ResultAnchor[] {
   return anchors;
 }
 
-function snippetFrom(segment: string): string {
+function resultBlockCount(html: string): number {
+  const pattern = /<div\b([^>]*)>/gi;
+  let count = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(html)) !== null) {
+    if (hasClass(match[1] ?? "", "result")) count += 1;
+  }
+  return count;
+}
+
+function snippetFrom(segment: string): string | undefined {
   const pattern = /<(a|div|span)\b([^>]*)>([\s\S]*?)<\/\1>/gi;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(segment)) !== null) {
@@ -92,7 +107,7 @@ function snippetFrom(segment: string): string {
       return cleanText(match[3] ?? "");
     }
   }
-  return "";
+  return undefined;
 }
 
 export function parseDuckDuckGoHtml(
@@ -105,6 +120,10 @@ export function parseDuckDuckGoHtml(
   }
 
   const anchors = resultAnchors(html);
+  const blockCount = resultBlockCount(html);
+  if (blockCount > 0 && blockCount !== anchors.length) {
+    return err("web", "unexpected response shape");
+  }
   if (anchors.length === 0) {
     const isKnownEmpty =
       lower.includes("no-results") || lower.includes("no results found");
@@ -113,14 +132,16 @@ export function parseDuckDuckGoHtml(
       : err("web", "unexpected response shape");
   }
   const candidates: RawCandidate[] = [];
-  anchors.forEach((anchor, index) => {
+  for (const [index, anchor] of anchors.entries()) {
     const href = attribute(anchor.attributes, "href");
     const destinationUrl = href ? destinationFromHref(href) : undefined;
-    if (!destinationUrl) return;
     const next = anchors[index + 1];
     const segment = html.slice(anchor.end, next?.start);
     const title = cleanText(anchor.titleHtml);
     const snippet = snippetFrom(segment);
+    if (!destinationUrl || !title || !snippet) {
+      return err("web", "unexpected response shape");
+    }
     candidates.push({
       source: "web",
       id: destinationUrl,
@@ -141,7 +162,7 @@ export function parseDuckDuckGoHtml(
         },
       ],
     });
-  });
+  }
   return ok("web", candidates);
 }
 

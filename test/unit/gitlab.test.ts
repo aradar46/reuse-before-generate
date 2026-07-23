@@ -66,12 +66,12 @@ test("GitLab sends the documented URL and user agent", async () => {
 
   assert.equal(
     seenUrl,
-    "https://gitlab.com/api/v4/projects?search=a%2Fb%20%26%20c&simple=true&per_page=9&order_by=last_activity_at",
+    "https://gitlab.com/api/v4/projects?search=a%2Fb%20%26%20c&per_page=9&order_by=last_activity_at",
   );
   assert.equal(seenHeaders["User-Agent"], "reuse-before-generate-mcp/0.3");
 });
 
-test("GitLab accepts the live simple-project shape that omits archived", async () => {
+test("GitLab rejects a project response that omits real archive state", async () => {
   setFetcher(async () =>
     Response.json([
       {
@@ -87,8 +87,11 @@ test("GitLab accepts the live simple-project shape that omits archived", async (
 
   const result = await searchGitLabResult("simple");
 
-  assert.equal(result.ok, true);
-  if (result.ok) assert.equal(result.value[0]?.archived, false);
+  assert.deepEqual(result, {
+    ok: false,
+    source: "gitlab",
+    reason: "unexpected response shape",
+  });
 });
 
 test("GitLab isolates HTTP failures", async () => {

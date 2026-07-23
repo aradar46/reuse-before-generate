@@ -102,7 +102,7 @@ test("GitLabSearchResponse accepts nullable project descriptions", () => {
   );
 });
 
-test("GitLabSearchResponse defaults archived for simple API responses", () => {
+test("GitLabSearchResponse requires real archive state", () => {
   const parsed = GitLabSearchResponse.safeParse([
     {
       id: 1,
@@ -113,8 +113,7 @@ test("GitLabSearchResponse defaults archived for simple API responses", () => {
       last_activity_at: "2026-07-20T00:00:00Z",
     },
   ]);
-  assert.equal(parsed.success, true);
-  if (parsed.success) assert.equal(parsed.data[0]?.archived, false);
+  assert.equal(parsed.success, false);
 });
 
 test("HackerNewsSearchResponse accepts optional nullable launch fields", () => {

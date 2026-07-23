@@ -42,7 +42,7 @@ export async function searchGitLabResult(
 ): Promise<Result<RawCandidate[]>> {
   const url =
     `${API_URL}?search=${encodeURIComponent(query)}` +
-    `&simple=true&per_page=${limit}&order_by=last_activity_at`;
+    `&per_page=${limit}&order_by=last_activity_at`;
   try {
     const response = await httpGet(url, { "User-Agent": USER_AGENT });
     if (!response.ok) return err("gitlab", `HTTP ${response.status}`);
