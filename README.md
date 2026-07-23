@@ -55,11 +55,13 @@ But I had to build it to find out. Hopefully it will prevent me from doing it ag
 
 ## What it searches
 
-One bounded plan searches GitHub, npm, GitLab, Show HN and, when the
+One bounded plan searches GitHub, GitLab, Show HN and, when the
 ecosystem is explicit, crates.io, RubyGems, Packagist, Maven Central, or a
-Python-specific repository lane. These sources are keyless. Optional Tavily
-search broadens discovery beyond developer indexes so both reusable projects
-and existing products can surface.
+Python-specific repository lane. npm is searched for library and CLI
+requests, but skipped for applications and services where package results are
+usually noise. These sources are keyless. Optional Tavily search broadens
+discovery beyond developer indexes so both reusable projects and existing
+products can surface.
 
 The agent may supply structured intent: a category name, the outcome the
 tool should achieve, alternative terminology, must-have constraints, and
@@ -76,7 +78,21 @@ room for both an established, relevant project and a promising niche project;
 raw popularity alone cannot earn the authority slot. Official homepages also
 link open-source projects to their commercial product identity, so one entity
 can correctly appear in both sections. Returned evidence is capped after
-ranking to keep the agent context focused.
+ranking to keep the agent context focused. Tavily formulations adapt to the
+artifact type and must-have constraints instead of treating every request as
+self-hosted software. Recognized source links in Tavily page content can join
+an official product page to its GitHub or GitLab repository.
+
+Repository size, forks, and constraint evidence are returned as confidence
+signals. A very small application repository is marked
+`minimal_repository` and demoted rather than presented as an implemented
+foundation. A larger repository is only marked `substantial_repository`;
+size alone does not verify implementation quality. Constraint matches are
+explicitly `claimed` or `unknown`; retrieved claims are not represented as
+independently verified facts. The
+calling agent reports functional overlap, reuse readiness, product maturity,
+constraint evidence, and confidence separately instead of collapsing them
+into one numeric score.
 
 Every response includes **Search coverage**, naming both searched and
 unavailable sources. An empty result is reported cautiously: it means no

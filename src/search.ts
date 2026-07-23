@@ -21,7 +21,7 @@ import { searchTavilyDiscoveryResult } from "./sources/tavily.js";
 
 export type { RawCandidate } from "./candidate.js";
 
-const USER_AGENT = "reuse-before-generate-mcp/0.6";
+const USER_AGENT = "reuse-before-generate-mcp/0.7";
 const GITHUB_API = "https://api.github.com";
 const githubScheduler = new GitHubRequestScheduler();
 
@@ -177,6 +177,8 @@ function toGitHubCandidate(
     url: item.html_url,
     description,
     stars: item.stargazers_count,
+    ...(item.forks_count !== undefined ? { forks: item.forks_count } : {}),
+    ...(item.size !== undefined ? { repositorySizeKb: item.size } : {}),
     pushedAt: item.pushed_at,
     archived: item.archived,
     kind: "open_source",
@@ -481,17 +483,22 @@ export async function searchAllResults(
   const gitLabQueries = uniqueQueries(category, outcome);
   const showHnQueries = uniqueQueries(category, outcome, synonyms);
 
-  const generic = Promise.all([
+  const genericSearches: Array<Promise<Result<RawCandidate[]>>> = [
     searchGitHubPlanResult(plan),
-    combineSourceQueries(
+  ];
+  if (plan.artifactType === "library" || plan.artifactType === "cli") {
+    genericSearches.push(combineSourceQueries(
       "npm",
       npmQueries,
       (query) => searchNpmResult(description, [query]),
-    ),
+    ));
+  }
+  genericSearches.push(
     combineSourceQueries("gitlab", gitLabQueries, searchGitLabResult),
     combineSourceQueries("hackernews", showHnQueries, searchShowHnResult),
-    searchTavilyDiscoveryResult(category, synonyms),
-  ]);
+    searchTavilyDiscoveryResult(plan),
+  );
+  const generic = Promise.all(genericSearches);
   const python = plan.ecosystem === "python"
     ? searchPythonResult(description, [category])
     : undefined;

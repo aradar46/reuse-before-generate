@@ -21,6 +21,8 @@ export const GitHubSearchItem = z.object({
   // 2 were null. Hence nullable but not optional, unlike npm's below.
   description: z.string().nullable(),
   stargazers_count: z.number(),
+  size: z.number().optional(),
+  forks_count: z.number().optional(),
   pushed_at: z.string(),
   archived: z.boolean(),
   homepage: z.string().nullable().optional(),

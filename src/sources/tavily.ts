@@ -2,11 +2,12 @@ import { z } from "zod";
 import type { RawCandidate } from "../candidate.js";
 import { mergeCandidates } from "../canonicalize.js";
 import { httpGet, httpPostJson } from "../http.js";
+import type { QueryPlan } from "../query-plan.js";
 import { err, ok, unavailable, type Result } from "../result.js";
 
 const SEARCH_URL = "https://api.tavily.com/search";
 const TIMEOUT_MS = 8_000;
-const USER_AGENT = "reuse-before-generate-mcp/0.6";
+const USER_AGENT = "reuse-before-generate-mcp/0.7";
 
 const TavilySearchResponse = z.object({
   results: z.array(z.object({
@@ -14,6 +15,7 @@ const TavilySearchResponse = z.object({
     url: z.string(),
     content: z.string(),
     score: z.number(),
+    raw_content: z.string().nullable().optional(),
   })),
 });
 
@@ -27,6 +29,8 @@ interface RepositoryMetadata {
   pushedAt?: string;
   archived?: boolean;
   stars?: number;
+  forks?: number;
+  repositorySizeKb?: number;
 }
 
 function repositoryReference(value: string): RepositoryReference | undefined {
@@ -66,12 +70,15 @@ const GitHubRepositoryResponse = z.object({
   pushed_at: z.string().nullable(),
   archived: z.boolean(),
   stargazers_count: z.number(),
+  size: z.number().optional(),
+  forks_count: z.number().optional(),
 });
 
 const GitLabRepositoryResponse = z.object({
   last_activity_at: z.string().nullable(),
   archived: z.boolean(),
   star_count: z.number(),
+  forks_count: z.number().optional(),
 });
 
 async function repositoryMetadata(
@@ -94,6 +101,12 @@ async function repositoryMetadata(
           ...(parsed.data.pushed_at ? { pushedAt: parsed.data.pushed_at } : {}),
           archived: parsed.data.archived,
           stars: parsed.data.stargazers_count,
+          ...(parsed.data.forks_count !== undefined
+            ? { forks: parsed.data.forks_count }
+            : {}),
+          ...(parsed.data.size !== undefined
+            ? { repositorySizeKb: parsed.data.size }
+            : {}),
         }
         : {};
     }
@@ -105,6 +118,9 @@ async function repositoryMetadata(
           : {}),
         archived: parsed.data.archived,
         stars: parsed.data.star_count,
+        ...(parsed.data.forks_count !== undefined
+          ? { forks: parsed.data.forks_count }
+          : {}),
       }
       : {};
   } catch {
@@ -115,6 +131,7 @@ async function repositoryMetadata(
 export async function searchTavilyResult(
   query: string,
   limit = 10,
+  options: { includeRawContent?: boolean } = {},
 ): Promise<Result<RawCandidate[]>> {
   const token = process.env.TAVILY_API_KEY?.trim();
   if (!token) {
@@ -130,7 +147,7 @@ export async function searchTavilyResult(
         search_depth: "basic",
         max_results: limit,
         include_answer: false,
-        include_raw_content: false,
+        include_raw_content: options.includeRawContent === true,
       },
       TIMEOUT_MS,
     );
@@ -141,7 +158,14 @@ export async function searchTavilyResult(
 
     const candidates = await Promise.all(
       parsed.data.results.map(async (item, index) => {
-        const repo = repositoryReference(item.url);
+        const directRepo = repositoryReference(item.url);
+        const linkedRepo = options.includeRawContent
+          ? repositoryReferenceFromContent(
+            item.raw_content,
+            `${item.title} ${item.url}`,
+          )
+          : undefined;
+        const repo = directRepo ?? linkedRepo;
         const metadata = repo ? await repositoryMetadata(repo) : {};
         return {
           source: "web" as const,
@@ -151,6 +175,7 @@ export async function searchTavilyResult(
           description: item.content,
           kind: repo ? "open_source" as const : "unknown" as const,
           ...(repo ? { repositoryUrl: repo.url } : {}),
+          ...(repo && !directRepo ? { homepageUrl: item.url } : {}),
           ...metadata,
           traction: `web relevance ${item.score.toFixed(3)}`,
           evidence: [
@@ -177,25 +202,105 @@ export async function searchTavilyResult(
   }
 }
 
+function repositoryReferenceFromContent(
+  content: string | null | undefined,
+  productIdentity: string,
+): RepositoryReference | undefined {
+  if (!content) return undefined;
+  const urls = content.match(
+    /https?:\/\/(?:www\.)?(?:github\.com|gitlab\.com)\/[^\s)\]>"']+/gi,
+  ) ?? [];
+  const references = new Map<string, RepositoryReference>();
+  for (const url of urls) {
+    const reference = repositoryReference(url);
+    if (reference) references.set(reference.url, reference);
+  }
+  if (references.size === 1) return [...references.values()][0];
+  const productTokens = identityTokens(productIdentity);
+  const ranked = [...references.values()]
+    .map((reference) => ({
+      reference,
+      overlap: [...identityTokens(reference.url)]
+        .filter((token) => productTokens.has(token)).length,
+    }))
+    .sort((left, right) => right.overlap - left.overlap);
+  return (ranked[0]?.overlap ?? 0) > 0
+    ? ranked[0]?.reference
+    : undefined;
+}
+
+function identityTokens(value: string): Set<string> {
+  const ignored = new Set([
+    "app",
+    "application",
+    "github",
+    "gitlab",
+    "official",
+    "source",
+    "software",
+    "template",
+    "website",
+  ]);
+  return new Set(value
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !ignored.has(token)));
+}
+
+function compactConstraints(plan: QueryPlan): string {
+  return plan.constraints.slice(0, 3).join(" ");
+}
+
+function discoveryQueries(plan: QueryPlan): {
+  reuse: string;
+  product: string;
+} {
+  const category = plan.formulations.category;
+  const productName = plan.formulations.synonyms?.trim() || category;
+  const constraints = compactConstraints(plan);
+  const qualified = (value: string, suffix: string): string =>
+    [value, constraints, suffix].filter(Boolean).join(" ");
+  switch (plan.artifactType) {
+    case "application":
+      return {
+        reuse: qualified(category, "open source app"),
+        product: qualified(productName, "official app"),
+      };
+    case "service":
+      return {
+        reuse: qualified(category, "open source self-hosted"),
+        product: qualified(productName, "official hosted software pricing"),
+      };
+    case "cli":
+      return {
+        reuse: qualified(category, "open source command line"),
+        product: qualified(productName, "official CLI software"),
+      };
+    case "library":
+      return {
+        reuse: qualified(category, "open source library"),
+        product: qualified(productName, "official developer library"),
+      };
+  }
+}
+
 /**
  * Keeps reusable implementations and existing products in separate recall
  * lanes. Product-oriented pages otherwise crowd repositories out of a single
  * broad web query, while an open-source-only query hides useful competition.
  */
 export async function searchTavilyDiscoveryResult(
-  category: string,
-  synonyms?: string,
+  plan: QueryPlan,
 ): Promise<Result<RawCandidate[]>> {
   if (!process.env.TAVILY_API_KEY?.trim()) {
     return unavailable("web", "TAVILY_API_KEY not configured");
   }
 
-  const reuseQuery = `${category} open source self-hosted`;
-  const productQuery =
-    `${synonyms?.trim() || category} official software pricing`;
+  const { reuse: reuseQuery, product: productQuery } = discoveryQueries(plan);
   const results = await Promise.all([
     searchTavilyResult(reuseQuery, 5),
-    searchTavilyResult(productQuery, 5),
+    searchTavilyResult(productQuery, 5, { includeRawContent: true }),
   ]);
   const successes = results.filter((result) => result.ok);
   if (successes.length > 0) {

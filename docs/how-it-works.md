@@ -14,12 +14,13 @@ The technical detail behind the one-paragraph summary in the README.
 2. **Search** (`src/search.ts`) — executes a bounded plan. GitHub requests
    share one rate-aware scheduler and are serialized across tool calls.
    GitHub gets at most four diverse queries (category, synonym, constraint or
-   outcome, and `stars:0..3`);
-   npm gets at most two unique formulations; GitLab gets category and
-   outcome; Show HN gets at most three; and optional Tavily web discovery
-   gets separate reusable-project and existing-product queries. npm uses
-   category and synonym formulations, not
-   the free-form outcome. An explicit Python plan adds one
+   outcome, and `stars:0..3`); GitLab gets category and outcome; Show HN gets
+   at most three; and optional Tavily web discovery gets separate
+   reusable-project and existing-product queries shaped by artifact type and
+   up to three must-have constraints. npm gets at most two unique
+   formulations for library and CLI requests, and is skipped for applications
+   and services. npm uses category and synonym formulations, not the free-form
+   outcome. An explicit Python plan adds one
    `language:python` GitHub query. Rust, Ruby, PHP, or JVM adds one matching
    registry query. Duplicate or empty formulations can reduce these counts;
    nothing expands them.
@@ -31,8 +32,11 @@ The technical detail behind the one-paragraph summary in the README.
    reciprocal-rank fusion: `retrieval score = Σ 1 / (60 + rank)`. A
    source/query contributes only its best valid rank.
    GitHub homepage metadata joins official product pages to their repository
-   identity. A project with direct market evidence can appear in both pools:
-   reusable code and a product the proposal would compete with.
+   identity. Tavily product-page content is also inspected for matching
+   GitHub or GitLab source links, while unrelated repository links are
+   ignored when they do not match the product identity. A project with direct
+   market evidence can appear in both pools: reusable code and a product the
+   proposal would compete with.
 
 4. **Separate and verify** (`src/verify.ts`) — repository and package
    evidence goes to **Projects you could reuse** and must be unarchived with
@@ -46,11 +50,17 @@ The technical detail behind the one-paragraph summary in the README.
    for intent coverage, lane agreement, artifact fit, and common retrieval
    noise. Reuse ranking reserves top-five capacity for semantic fit,
    established authority, and a low-star niche result without treating stars
-   as relevance. Article-like web pages move behind direct product evidence.
-   The evidence passed to the caller is capped at 15 reuse and 10 competition
-   candidates after ranking. It returns the ranking signals with the evidence;
-   the calling agent still judges functional overlap. Coverage separately
-   names searched, unavailable, and failed sources.
+   as relevance. Repository size distinguishes substantial repositories from
+   minimal shells without claiming that size proves implementation quality;
+   minimal application, service, and CLI repositories are demoted rather than
+   treated as reusable architecture. Article-like web pages move behind
+   direct product evidence. The evidence passed to the
+   caller is capped at 15 reuse and 10 competition candidates after ranking.
+   It returns repository substance and claimed/unknown constraint evidence
+   with the ranking signals. The calling agent judges functional overlap,
+   reuse readiness, maturity, and confidence separately rather than producing
+   a single numeric score. Coverage separately names searched, unavailable,
+   and failed sources.
 
 ## Why the server does not call an LLM
 

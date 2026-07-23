@@ -37,6 +37,13 @@ const reuse = {
   canonicalUrl: "https://github.com/acme/widget",
   pool: "reuse",
   retrievalScore: 0.03,
+  repositorySizeKb: 2_500,
+  forks: 4,
+  repositorySubstance: "substantial_repository",
+  constraintEvidence: [
+    { constraint: "offline", status: "claimed", sources: ["github"] },
+    { constraint: "no account", status: "unknown", sources: [] },
+  ],
   maintained: true,
   maintenanceReason: "active within the last 3 days",
   daysSinceLastActivity: 3,
@@ -93,6 +100,16 @@ test("rerank prompt groups reuse and competition and renders every evidence item
     data["Projects you could reuse"][0]["health/limits"],
     "active within the last 3 days",
   );
+  assert.equal(
+    data["Projects you could reuse"][0].repositorySubstance,
+    "substantial_repository",
+  );
+  assert.equal(data["Projects you could reuse"][0].repositorySizeKb, 2_500);
+  assert.equal(data["Projects you could reuse"][0].forks, 4);
+  assert.deepEqual(
+    data["Projects you could reuse"][0].constraintEvidence,
+    reuse.constraintEvidence,
+  );
   assert.deepEqual(
     data["Projects you could reuse"][0].evidence.map(
       (item: { source: string; rank: number; query: string; snippet: string }) =>
@@ -122,19 +139,19 @@ test("rerank instructions require honest scoring and exact negative wording", ()
 
   for (const dimension of [
     "function",
-    "audience",
-    "workflow",
-    "reuse",
-    "market",
-    "evidence",
-    "health",
+    "reuse readiness",
+    "product maturity",
+    "constraint evidence",
+    "confidence",
   ]) {
     assert.match(prompt, new RegExp(dimension, "i"));
   }
-  assert.match(prompt, /at most 3.*40\+.*per section/i);
+  assert.match(prompt, /at most 3.*per section/i);
   assert.match(prompt, /popularity.*context only/i);
   assert.match(prompt, /preserve.*unknown/i);
   assert.match(prompt, /do not pad/i);
+  assert.match(prompt, /claimed.*not independently verified/i);
+  assert.doesNotMatch(prompt, /80-100|40-79|0-39/);
   assert.match(prompt, /No strong match found in the sources searched\./);
   assert.doesNotMatch(prompt, /clear to build/i);
   assert.doesNotMatch(prompt, /no competitors?/i);

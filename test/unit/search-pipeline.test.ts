@@ -51,7 +51,10 @@ test("searchAllResults returns ok results with candidates from each source", asy
     }),
   );
 
-  const results = await searchAllResults("python formatter", ["python", "formatter", "code"]);
+  const results = await searchAllResults(
+    "python formatter library",
+    ["python", "formatter", "library"],
+  );
   const github = results.find((r) => r.source === "github");
   const npm = results.find((r) => r.source === "npm");
 
@@ -72,7 +75,10 @@ test("an HTTP error on one source does not fail the others", async () => {
     }),
   );
 
-  const results = await searchAllResults("python formatter", ["python", "formatter", "code"]);
+  const results = await searchAllResults(
+    "python formatter library",
+    ["python", "formatter", "library"],
+  );
   const github = results.find((r) => r.source === "github");
   const npm = results.find((r) => r.source === "npm");
 

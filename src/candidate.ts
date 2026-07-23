@@ -3,6 +3,17 @@ import type { Source } from "./result.js";
 export type CandidateKind = "open_source" | "commercial" | "unknown";
 export type ResultPool = "reuse" | "competition";
 export type Ecosystem = "python" | "rust" | "ruby" | "php" | "jvm";
+export type RepositorySubstance =
+  | "published_package"
+  | "substantial_repository"
+  | "minimal_repository"
+  | "unknown";
+
+export interface ConstraintEvidence {
+  constraint: string;
+  status: "claimed" | "unknown";
+  sources: Source[];
+}
 
 export interface QueryFormulations {
   category: string;
@@ -30,6 +41,8 @@ export interface RawCandidate {
   url: string;
   description: string;
   stars?: number;
+  forks?: number;
+  repositorySizeKb?: number;
   pushedAt?: string;
   archived?: boolean;
   kind: CandidateKind;
@@ -48,6 +61,8 @@ export interface RankedCandidate extends RawCandidate {
   localScore?: number;
   semanticFit?: number;
   authorityScore?: number;
+  repositorySubstance?: RepositorySubstance;
+  constraintEvidence?: ConstraintEvidence[];
   rankingSignals?: string[];
   rankingPenalties?: string[];
   discoveryTier?:

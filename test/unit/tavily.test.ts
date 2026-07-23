@@ -45,6 +45,8 @@ test("Tavily makes one basic bounded search and maps repository and product evid
         pushed_at: "2026-07-22T12:00:00Z",
         archived: false,
         stargazers_count: 42_000,
+        size: 12_345,
+        forks_count: 2_100,
       });
     }
     seenHeaders = init?.headers as Record<string, string>;
@@ -87,6 +89,8 @@ test("Tavily makes one basic bounded search and maps repository and product evid
   assert.equal(result.value[0]?.pushedAt, "2026-07-22T12:00:00Z");
   assert.equal(result.value[0]?.archived, false);
   assert.equal(result.value[0]?.stars, 42_000);
+  assert.equal(result.value[0]?.repositorySizeKb, 12_345);
+  assert.equal(result.value[0]?.forks, 2_100);
   assert.equal(result.value[1]?.kind, "unknown");
   assert.equal(result.value[1]?.url, "https://calendly.com");
   assert.deepEqual(
@@ -170,17 +174,74 @@ test("Tavily discovery uses separate bounded reuse and product formulations", as
     return Response.json({ results: [] });
   });
 
-  const result = await searchTavilyDiscoveryResult(
-    "personal relationship manager",
-    "personal CRM contact organizer",
-  );
+  const result = await searchTavilyDiscoveryResult({
+    formulations: {
+      category: "private period tracker",
+      outcome: "track menstrual cycles without cloud storage",
+      synonyms: "menstrual cycle tracker",
+    },
+    constraints: ["Android", "iOS", "offline", "no account"],
+    artifactType: "application",
+  });
 
   assert.equal(result.ok, true);
   assert.deepEqual(
-    bodies.map((body) => [body.query, body.max_results]),
+    bodies.map((body) => [
+      body.query,
+      body.max_results,
+      body.include_raw_content,
+    ]),
     [
-      ["personal relationship manager open source self-hosted", 5],
-      ["personal CRM contact organizer official software pricing", 5],
+      ["private period tracker Android iOS offline open source app", 5, false],
+      ["menstrual cycle tracker Android iOS offline official app", 5, true],
     ],
   );
+});
+
+test("Tavily links an official product page to source found in raw content", async () => {
+  process.env.TAVILY_API_KEY = "tvly-test-secret";
+  setFetcher(async (url, init) => {
+    if (String(url) === "https://api.github.com/repos/acme/cycle") {
+      return Response.json({
+        pushed_at: "2026-07-22T12:00:00Z",
+        archived: false,
+        stargazers_count: 23,
+        size: 2_500,
+        forks_count: 4,
+      });
+    }
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.include_raw_content === true) {
+      return Response.json({
+        results: [{
+          title: "Cycle App",
+          url: "https://cycle.example",
+          content: "Private period tracking application.",
+          raw_content:
+            "Site theme: https://github.com/vendor/site-template\n" +
+            "Cycle is open source. [Source](https://github.com/acme/cycle)",
+          score: 0.9,
+        }],
+      });
+    }
+    return Response.json({ results: [] });
+  });
+
+  const result = await searchTavilyDiscoveryResult({
+    formulations: {
+      category: "private period tracker",
+      outcome: "track periods privately",
+      synonyms: "cycle app",
+    },
+    constraints: ["offline"],
+    artifactType: "application",
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.length, 1);
+  assert.equal(result.value[0]?.repositoryUrl, "https://github.com/acme/cycle");
+  assert.equal(result.value[0]?.homepageUrl, "https://cycle.example");
+  assert.equal(result.value[0]?.kind, "open_source");
+  assert.equal(result.value[0]?.repositorySizeKb, 2_500);
 });

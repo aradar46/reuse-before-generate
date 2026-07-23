@@ -254,6 +254,11 @@ export function mergeCandidates(candidates: readonly RawCandidate[]): RawCandida
         ...(candidate.topics ?? []),
       ])],
       stars: richerNumber(current.stars, candidate.stars),
+      forks: richerNumber(current.forks, candidate.forks),
+      repositorySizeKb: richerNumber(
+        current.repositorySizeKb,
+        candidate.repositorySizeKb,
+      ),
       traction: current.traction ?? candidate.traction,
       pushedAt: freshestPushedAt(current.pushedAt, candidate),
       archived: current.archived ?? candidate.archived,

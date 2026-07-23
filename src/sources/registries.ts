@@ -3,7 +3,7 @@ import type { Ecosystem, RawCandidate } from "../candidate.js";
 import { encodeUrlComponent, httpGet } from "../http.js";
 import { err, ok, type Result, type Source } from "../result.js";
 
-const USER_AGENT = "reuse-before-generate-mcp/0.6";
+const USER_AGENT = "reuse-before-generate-mcp/0.7";
 const HEADERS = { "User-Agent": USER_AGENT };
 
 const CratesSearchResponse = z.object({

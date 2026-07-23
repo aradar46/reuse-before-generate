@@ -248,3 +248,44 @@ test("reviews and best-of pages receive an informational penalty", async () => {
     item.includes("informational page")));
   assert.ok((review?.localScore ?? 0) < 0);
 });
+
+test("application ranking demotes a minimal repository shell and exposes evidence confidence", async () => {
+  const plan = buildQueryPlan("Build a private period tracker", [], {
+    category: "private period tracker",
+    outcome: "track menstrual cycles without cloud storage",
+    synonyms: "menstrual cycle tracker",
+    constraints: ["offline", "Android"],
+    artifactType: "application",
+  });
+  const [implemented, shell] = await prepareCandidates([
+    candidate(
+      "github",
+      "implemented-cycle",
+      "Offline Android private period tracker",
+      ["private period tracker offline Android"],
+      0,
+    ),
+    candidate(
+      "github",
+      "readme-promise",
+      "Offline Android private period tracker",
+      ["private period tracker offline Android"],
+      1,
+    ),
+  ].map((item, index) => ({
+    ...item,
+    repositorySizeKb: index === 0 ? 2_850 : 14,
+    forks: 0,
+  })), plan);
+
+  assert.equal(implemented?.name, "implemented-cycle");
+  assert.equal(implemented?.repositorySubstance, "substantial_repository");
+  assert.equal(shell?.repositorySubstance, "minimal_repository");
+  assert.ok(shell?.rankingPenalties?.includes(
+    "minimal repository footprint for an application",
+  ));
+  assert.deepEqual(implemented?.constraintEvidence, [
+    { constraint: "offline", status: "claimed", sources: ["github"] },
+    { constraint: "Android", status: "claimed", sources: ["github"] },
+  ]);
+});

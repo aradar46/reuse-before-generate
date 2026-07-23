@@ -1,4 +1,8 @@
-import type { RankedCandidate } from "./candidate.js";
+import type {
+  ConstraintEvidence,
+  RankedCandidate,
+  RepositorySubstance,
+} from "./candidate.js";
 import type { QueryPlan } from "./query-plan.js";
 
 const STOP_WORDS = new Set([
@@ -91,6 +95,37 @@ function evidenceSources(candidate: RankedCandidate): Set<string> {
   return new Set(candidate.evidence.map((item) => item.source));
 }
 
+function repositorySubstance(
+  candidate: RankedCandidate,
+): RepositorySubstance {
+  if (candidate.packageUrl && !candidate.repositoryUrl) {
+    return "published_package";
+  }
+  if (candidate.repositorySizeKb === undefined) return "unknown";
+  return candidate.repositorySizeKb <= 32
+    ? "minimal_repository"
+    : "substantial_repository";
+}
+
+function constraintsFor(
+  candidate: RankedCandidate,
+  constraints: readonly string[],
+): ConstraintEvidence[] {
+  return constraints.map((constraint) => {
+    const sources = [...new Set(candidate.evidence
+      .filter((item) =>
+        coverage(
+          constraint,
+          new Set(tokens(`${item.title} ${item.snippet}`, true, true)),
+          true,
+        ) === 1)
+      .map((item) => item.source))];
+    return sources.length > 0
+      ? { constraint, status: "claimed" as const, sources }
+      : { constraint, status: "unknown" as const, sources: [] };
+  });
+}
+
 function tier(
   candidate: RankedCandidate,
   score: number,
@@ -129,6 +164,8 @@ export function rankCandidates<T extends RankedCandidate>(
       const signals: string[] = [];
       const penalties: string[] = [];
       const sources = evidenceSources(candidate);
+      const substance = repositorySubstance(candidate);
+      const constraintEvidence = constraintsFor(candidate, plan.constraints);
       const uniqueQueries = new Set(
         candidate.evidence.map((item) => item.query.toLocaleLowerCase()),
       ).size;
@@ -216,6 +253,15 @@ export function rankCandidates<T extends RankedCandidate>(
         penalty += 0.45;
         penalties.push("curated list rather than an implementation");
       }
+      if (
+        substance === "minimal_repository"
+        && plan.artifactType !== "library"
+      ) {
+        penalty += 0.55;
+        penalties.push(
+          `minimal repository footprint for an ${plan.artifactType}`,
+        );
+      }
 
       const retrieval = bounded(candidate.retrievalScore * 6, 0, 0.2);
       const laneAgreement = bounded((uniqueQueries - 1) * 0.04, 0, 0.08);
@@ -255,6 +301,8 @@ export function rankCandidates<T extends RankedCandidate>(
         localScore: Number(score.toFixed(4)),
         semanticFit: Number(semanticFit.toFixed(4)),
         authorityScore: Number(authorityScore.toFixed(4)),
+        repositorySubstance: substance,
+        constraintEvidence,
         rankingSignals: signals,
         rankingPenalties: penalties,
         discoveryTier: tier(candidate, score, penalties),

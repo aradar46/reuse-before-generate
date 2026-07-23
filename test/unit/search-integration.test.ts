@@ -52,7 +52,6 @@ test("generic discovery uses explicit formulations, stable source order, and bou
 
   assert.deepEqual(results.map((result) => result.source), [
     "github",
-    "npm",
     "gitlab",
     "hackernews",
     "web",
@@ -71,7 +70,6 @@ test("generic discovery uses explicit formulations, stable source order, and bou
   }
   assert.deepEqual(Object.fromEntries(hostCounts), {
     "api.github.com": 4,
-    "registry.npmjs.org": 2,
     "gitlab.com": 2,
     "hn.algolia.com": 3,
   });
@@ -101,6 +99,31 @@ test("generic discovery uses explicit formulations, stable source order, and bou
   assert.equal(githubQueries.some((query) => query.includes("stars:0..3")), true);
 });
 
+test("library discovery keeps the npm lane", async () => {
+  const urls: string[] = [];
+  setFetcher(async (url) => {
+    urls.push(url);
+    return emptyDiscoveryResponse(url);
+  });
+
+  const results = await searchAllResults(
+    "Parse command line arguments",
+    ["command", "line", "arguments"],
+    {
+      category: "JavaScript argument parser",
+      outcome: "parse command line options",
+      synonyms: "Node argv library",
+      artifactType: "library",
+    },
+  );
+
+  assert.ok(results.some((result) => result.source === "npm"));
+  assert.equal(
+    urls.some((url) => new URL(url).hostname === "registry.npmjs.org"),
+    true,
+  );
+});
+
 test("Python adds only its one separate GitHub lane", async () => {
   const urls: string[] = [];
   setFetcher(async (url) => {
@@ -120,7 +143,6 @@ test("Python adds only its one separate GitHub lane", async () => {
 
   assert.deepEqual(results.map((result) => result.source), [
     "github",
-    "npm",
     "gitlab",
     "hackernews",
     "web",
@@ -227,6 +249,8 @@ test("GitHub, npm, and Python mappings include actual ranked evidence and URLs",
         html_url: "https://github.com/acme/termglass",
         description: "Terminal JSON viewer",
         stargazers_count: 7,
+        size: 456,
+        forks_count: 3,
         pushed_at: "2026-07-20T00:00:00Z",
         archived: false,
         homepage: "https://termglass.example",
@@ -247,6 +271,8 @@ test("GitHub, npm, and Python mappings include actual ranked evidence and URLs",
   assert.equal(github.value[0]?.repositoryUrl, "https://github.com/acme/termglass");
   assert.equal(github.value[0]?.homepageUrl, "https://termglass.example");
   assert.deepEqual(github.value[0]?.topics, ["json-viewer", "terminal"]);
+  assert.equal(github.value[0]?.repositorySizeKb, 456);
+  assert.equal(github.value[0]?.forks, 3);
   assert.deepEqual(
     github.value[0]?.evidence.map((evidence) => [evidence.query, evidence.rank]),
     [
