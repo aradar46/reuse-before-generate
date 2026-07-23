@@ -38,8 +38,8 @@ test("formulationHitRate measures which planned formulations retrieved the winne
 });
 
 test("GitHub pacing follows the actual generic or Python query plan", () => {
-  assert.equal(githubRequestsForPlan({ formulations: {}, ecosystem: undefined }), 2);
-  assert.equal(githubRequestsForPlan({ formulations: {}, ecosystem: "python" }), 3);
+  assert.equal(githubRequestsForPlan({ formulations: {}, ecosystem: undefined }), 4);
+  assert.equal(githubRequestsForPlan({ formulations: {}, ecosystem: "python" }), 5);
 });
 
 test("summary separates reuse and competition recall and attributes failures", () => {

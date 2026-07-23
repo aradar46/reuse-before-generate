@@ -43,4 +43,12 @@ export interface RankedCandidate extends RawCandidate {
   canonicalUrl: string;
   pool: ResultPool;
   retrievalScore: number;
+  localScore?: number;
+  rankingSignals?: string[];
+  rankingPenalties?: string[];
+  discoveryTier?:
+    | "strong_reuse"
+    | "promising_niche"
+    | "adjacent_building_block"
+    | "commercial_competitor";
 }

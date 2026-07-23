@@ -61,10 +61,17 @@ Python-specific repository lane. These sources are keyless. Optional Tavily
 search broadens discovery beyond developer indexes so both reusable projects
 and existing products can surface.
 
-The agent may supply three optional formulations: a category name, the
-outcome the tool should achieve, and alternative terminology. The planner
-uses a fixed number of requests; formulations do not create an unbounded
-search loop.
+The agent may supply structured intent: a category name, the outcome the
+tool should achieve, alternative terminology, must-have constraints, and
+whether the desired artifact is an application, service, CLI, or library.
+Older clients can omit the last two fields. The planner uses a fixed number
+of requests; intent fields do not create an unbounded search loop.
+
+Results receive a transparent local prescore before the calling agent makes
+the final semantic judgment. It rewards workflow and constraint fit and
+penalizes predictable noise such as listicles, integration components, and
+npm-only packages returned for application requests. For library requests,
+npm remains first-class evidence.
 
 Every response includes **Search coverage**, naming both searched and
 unavailable sources. An empty result is reported cautiously: it means no
@@ -161,9 +168,10 @@ Details, including where it still fails, are in
 ## Settings
 
 The optional settings are **`GITHUB_TOKEN`** and **`TAVILY_API_KEY`**.
-GitHub authentication improves repository-search throughput. Tavily adds one
-bounded web query per check; without it, coverage reports web as unavailable
-rather than failed. Set either or both in the `env` block shown in
+GitHub authentication improves repository-search throughput. Tavily adds two
+bounded web queries per check—one for reusable implementations and one for
+existing products; without it, coverage reports web as unavailable rather
+than failed. Set either or both in the `env` block shown in
 [Install](#install).
 
 It also keeps a local count of its own usage in

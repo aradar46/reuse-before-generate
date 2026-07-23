@@ -1,7 +1,10 @@
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { resetFetcher, setFetcher } from "../../dist/http.js";
-import { searchTavilyResult } from "../../dist/sources/tavily.js";
+import {
+  searchTavilyDiscoveryResult,
+  searchTavilyResult,
+} from "../../dist/sources/tavily.js";
 
 const originalKey = process.env.TAVILY_API_KEY;
 
@@ -156,4 +159,28 @@ test("Tavily preserves nested GitLab namespaces when fetching repository activit
     "https://gitlab.com/acme/platform/widget",
   );
   assert.equal(result.value[0]?.pushedAt, "2026-07-22T12:00:00Z");
+});
+
+test("Tavily discovery uses separate bounded reuse and product formulations", async () => {
+  process.env.TAVILY_API_KEY = "tvly-test-secret";
+  const bodies: Array<Record<string, unknown>> = [];
+  setFetcher(async (url, init) => {
+    assert.equal(String(url), "https://api.tavily.com/search");
+    bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    return Response.json({ results: [] });
+  });
+
+  const result = await searchTavilyDiscoveryResult(
+    "personal relationship manager",
+    "personal CRM contact organizer",
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    bodies.map((body) => [body.query, body.max_results]),
+    [
+      ["personal relationship manager open source self-hosted", 5],
+      ["personal CRM contact organizer software product", 5],
+    ],
+  );
 });

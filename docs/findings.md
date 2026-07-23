@@ -90,8 +90,8 @@ Reuse and competition recall@5/@10 are separate. The runner also records:
 - retrieval candidate count on the true-negative; and
 - per-source failures without collapsing them into misses.
 
-GitHub pacing follows the actual plan: two GitHub requests for a generic
-case and three for an explicit Python case. It uses the authenticated
+GitHub pacing follows the current plan: four GitHub requests for a generic
+case and five for an explicit Python case. It uses the authenticated
 30/minute or anonymous 10/minute rate with 25% headroom. A required
 attempted-source failure blocks baseline saving; experimental web failure
 does not. Single-case and mid-run-dist-change saves are refused.

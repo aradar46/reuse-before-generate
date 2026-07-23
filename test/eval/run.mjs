@@ -48,6 +48,7 @@ function delayAfterPlan(plan) {
 }
 
 async function runCase(testCase) {
+  const plan = planFor(testCase);
   const results = await searchAllResults(
     testCase.description,
     testCase.keywords,
@@ -61,7 +62,7 @@ async function runCase(testCase) {
       required: result.source !== "web",
     }));
   const raw = results.flatMap((result) => result.ok ? result.value : []);
-  const candidates = await prepareCandidates(raw);
+  const candidates = await prepareCandidates(raw, plan);
   const matched = rankExpectedTarget(
     candidates,
     testCase.expectedPool,

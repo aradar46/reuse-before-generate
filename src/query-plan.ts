@@ -1,19 +1,59 @@
 import type { Ecosystem, QueryFormulations } from "./candidate.js";
 
+export const ARTIFACT_TYPES = [
+  "application",
+  "service",
+  "cli",
+  "library",
+] as const;
+
+export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
+
 /** The structured form supplied by new callers. */
 export interface QueryInput {
   category: string;
   outcome: string;
   synonyms: string;
+  constraints?: string[];
+  artifactType?: ArtifactType;
 }
 
 export interface QueryPlan {
   formulations: QueryFormulations;
+  constraints: string[];
+  artifactType: ArtifactType;
   ecosystem?: Ecosystem;
 }
 
 function normalize(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeConstraints(values: readonly string[] | undefined): string[] {
+  const seen = new Set<string>();
+  const constraints: string[] = [];
+  for (const raw of values ?? []) {
+    const value = normalize(raw);
+    const key = value.toLocaleLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    constraints.push(value);
+  }
+  return constraints;
+}
+
+export function inferArtifactType(...texts: readonly string[]): ArtifactType {
+  const text = texts.join(" ").toLocaleLowerCase();
+  if (/\b(?:library|sdk|package|module|component|plugin|framework)\b/.test(text)) {
+    return "library";
+  }
+  if (/\b(?:command[- ]line|cli|terminal utility|console utility)\b/.test(text)) {
+    return "cli";
+  }
+  if (/\b(?:hosted|service|saas|api service|platform server)\b/.test(text)) {
+    return "service";
+  }
+  return "application";
 }
 
 /** Detect only ecosystems that are explicitly signalled by the query text. */
@@ -40,18 +80,27 @@ export function buildQueryPlan(
   const category = normalize(queries?.category ?? keywords.join(" "));
   const outcome = normalize(queries?.outcome ?? description);
   const synonyms = queries === undefined ? undefined : normalize(queries.synonyms);
+  const constraints = normalizeConstraints(queries?.constraints);
   const formulations: QueryFormulations = synonyms
     ? { category, outcome, synonyms }
     : { category, outcome };
-  const ecosystem = detectEcosystem(
+  const artifactType = queries?.artifactType ?? inferArtifactType(
     description,
     ...keywords,
     category,
     outcome,
     synonyms ?? "",
   );
+  const ecosystem = detectEcosystem(
+    description,
+    ...keywords,
+    category,
+    outcome,
+    synonyms ?? "",
+    ...constraints,
+  );
 
   return ecosystem
-    ? { formulations, ecosystem }
-    : { formulations };
+    ? { formulations, constraints, artifactType, ecosystem }
+    : { formulations, constraints, artifactType };
 }

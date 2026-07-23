@@ -45,6 +45,8 @@ test("generic discovery uses explicit formulations, stable source order, and bou
       category: "terminal json viewer",
       outcome: "browse JSON in terminal",
       synonyms: "command line data browser",
+      constraints: ["offline", "keyboard driven"],
+      artifactType: "application",
     },
   );
 
@@ -68,7 +70,7 @@ test("generic discovery uses explicit formulations, stable source order, and bou
     hostCounts.set(host, (hostCounts.get(host) ?? 0) + 1);
   }
   assert.deepEqual(Object.fromEntries(hostCounts), {
-    "api.github.com": 2,
+    "api.github.com": 4,
     "registry.npmjs.org": 2,
     "gitlab.com": 2,
     "hn.algolia.com": 3,
@@ -85,6 +87,18 @@ test("generic discovery uses explicit formulations, stable source order, and bou
     false,
   );
   assert.equal(queryValues.some((query) => query.includes("command line data browser")), true);
+  const githubQueries = urls
+    .filter((url) => new URL(url).hostname === "api.github.com")
+    .map(decodedQuery);
+  assert.equal(
+    githubQueries.some((query) => query.includes("command line data browser")),
+    true,
+  );
+  assert.equal(
+    githubQueries.some((query) => query.includes("offline keyboard driven")),
+    true,
+  );
+  assert.equal(githubQueries.some((query) => query.includes("stars:0..3")), true);
 });
 
 test("Python adds only its one separate GitHub lane", async () => {
@@ -114,7 +128,7 @@ test("Python adds only its one separate GitHub lane", async () => {
   ]);
   assert.equal(
     urls.filter((url) => new URL(url).hostname === "api.github.com").length,
-    3,
+    5,
   );
   assert.equal(
     urls.some((url) => /crates|rubygems|packagist|maven/.test(url)),

@@ -1,4 +1,8 @@
-import type { QueryInput } from "./query-plan.js";
+import {
+  buildQueryPlan,
+  type QueryInput,
+  type QueryPlan,
+} from "./query-plan.js";
 import type { RawCandidate } from "./candidate.js";
 import type { Result } from "./result.js";
 import type { PreparedCandidate } from "./verify.js";
@@ -22,7 +26,10 @@ export interface CheckDependencies {
     keywords?: string[],
     queries?: QueryInput,
   ) => Promise<Result<RawCandidate[]>[]>;
-  prepare: (raw: readonly RawCandidate[]) => Promise<PreparedCandidate[]>;
+  prepare: (
+    raw: readonly RawCandidate[],
+    plan?: QueryPlan,
+  ) => Promise<PreparedCandidate[]>;
   energy: () => string;
   track: (event: TelemetryEvent) => void;
 }
@@ -77,7 +84,12 @@ export async function runCheckBeforeBuilding(
       };
     }
 
-    const prepared = await dependencies.prepare(raw);
+    const plan = buildQueryPlan(
+      input.description,
+      input.keywords,
+      input.queries,
+    );
+    const prepared = await dependencies.prepare(raw, plan);
     const maintainedCount = prepared.filter(
       (candidate) => candidate.pool === "reuse",
     ).length;

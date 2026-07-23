@@ -10,7 +10,12 @@
 
 import { argv as processArgv } from "node:process";
 import { fileURLToPath } from "node:url";
-import type { QueryInput } from "./query-plan.js";
+import {
+  ARTIFACT_TYPES,
+  buildQueryPlan,
+  type ArtifactType,
+  type QueryInput,
+} from "./query-plan.js";
 import { searchAllResults } from "./search.js";
 import { prepareCandidates, type PreparedCandidate } from "./verify.js";
 import { formatCoverage } from "./report.js";
@@ -31,6 +36,8 @@ export function parseArgs(argv: string[]): Args {
     ["--category", "category"],
     ["--outcome", "outcome"],
     ["--synonyms", "synonyms"],
+    ["--constraints", "constraints"],
+    ["--artifact-type", "artifactType"],
   ]);
 
   for (let index = 0; index < args.length; index += 1) {
@@ -53,8 +60,21 @@ export function parseArgs(argv: string[]): Args {
   const category = values.get("category") ?? "";
   const outcome = values.get("outcome") ?? "";
   const synonyms = values.get("synonyms") ?? "";
+  const constraints = (values.get("constraints") ?? "")
+    .split(",")
+    .map((constraint) => constraint.trim())
+    .filter(Boolean);
+  const rawArtifactType = values.get("artifactType");
+  const artifactType = ARTIFACT_TYPES.find((value) =>
+    value === rawArtifactType) as ArtifactType | undefined;
   const queries = category && outcome && synonyms
-    ? { category, outcome, synonyms }
+    ? {
+      category,
+      outcome,
+      synonyms,
+      ...(constraints.length > 0 ? { constraints } : {}),
+      ...(artifactType ? { artifactType } : {}),
+    }
     : undefined;
 
   return {
@@ -82,7 +102,7 @@ async function main(): Promise<void> {
 
   if (!description) {
     console.error(
-      'Usage: npm run check -- "<description>" [--keywords a,b,c] [--category "..."] [--outcome "..."] [--synonyms "..."]',
+      'Usage: npm run check -- "<description>" [--keywords a,b,c] [--category "..."] [--outcome "..."] [--synonyms "..."] [--constraints a,b] [--artifact-type application|service|cli|library]',
     );
     process.exit(2);
   }
@@ -93,7 +113,12 @@ async function main(): Promise<void> {
   const results = await searchAllResults(description, keywords, queries);
 
   const raw = results.flatMap((r) => (r.ok ? r.value : []));
-  const candidates = await prepareCandidates(raw);
+  const plan = buildQueryPlan(
+    description,
+    keywords ?? [],
+    queries,
+  );
+  const candidates = await prepareCandidates(raw, plan);
   const reuse = candidates.filter((candidate) => candidate.pool === "reuse");
   const competition = candidates.filter((candidate) => candidate.pool === "competition");
   const coverage = formatCoverage(results);

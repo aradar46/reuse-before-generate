@@ -67,7 +67,7 @@ test("GitLab sends the documented URL and user agent", async () => {
     seenUrl,
     "https://gitlab.com/api/v4/projects?search=a%2Fb%20%26%20c&archived=false&per_page=9&order_by=last_activity_at",
   );
-  assert.equal(seenHeaders["User-Agent"], "reuse-before-generate-mcp/0.4");
+  assert.equal(seenHeaders["User-Agent"], "reuse-before-generate-mcp/0.5");
 });
 
 test("GitLab treats filtered projects as unarchived when the list response omits archived", async () => {

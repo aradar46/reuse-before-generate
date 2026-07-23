@@ -30,7 +30,7 @@ export function formulationHitRate(winner, queries) {
 }
 
 export function githubRequestsForPlan(plan) {
-  return plan.ecosystem === "python" ? 3 : 2;
+  return plan.ecosystem === "python" ? 5 : 4;
 }
 
 function poolSummary(rows, expectedPool) {

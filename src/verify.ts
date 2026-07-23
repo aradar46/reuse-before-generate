@@ -16,6 +16,8 @@
 
 import type { RankedCandidate, RawCandidate } from "./candidate.js";
 import { fuseCandidates } from "./fusion.js";
+import type { QueryPlan } from "./query-plan.js";
+import { rankCandidates } from "./relevance.js";
 
 export interface Verification {
   maintained: boolean;
@@ -131,6 +133,7 @@ export async function verifyAll<T extends RawCandidate>(
 /** Fuses retrieval evidence, verifies reuse health, and keeps market evidence separate. */
 export async function prepareCandidates(
   raw: readonly RawCandidate[],
+  plan?: QueryPlan,
 ): Promise<PreparedCandidate[]> {
   const prepared = await Promise.all(
     fuseCandidates(raw).map(async (candidate): Promise<PreparedCandidate | undefined> => {
@@ -146,7 +149,10 @@ export async function prepareCandidates(
       };
     }),
   );
-  return prepared
-    .filter((candidate): candidate is PreparedCandidate => candidate !== undefined)
-    .sort((left, right) => right.retrievalScore - left.retrievalScore);
+  const available = prepared
+    .filter((candidate): candidate is PreparedCandidate => candidate !== undefined);
+  return plan
+    ? rankCandidates(available, plan)
+    : available.sort((left, right) =>
+      right.retrievalScore - left.retrievalScore);
 }

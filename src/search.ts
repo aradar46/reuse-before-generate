@@ -6,18 +6,22 @@
 import { httpGet } from "./http.js";
 import { GitHubSearchResponse, NpmSearchResponse, type GitHubSearchItemT } from "./schemas.js";
 import { ok, err, type Result, type Source } from "./result.js";
-import { buildQueryPlan, type QueryInput } from "./query-plan.js";
+import {
+  buildQueryPlan,
+  type QueryInput,
+  type QueryPlan,
+} from "./query-plan.js";
 import { mergeCandidates } from "./canonicalize.js";
 import type { RawCandidate } from "./candidate.js";
 import { searchGitLabResult } from "./sources/gitlab.js";
 import { searchShowHnResult } from "./sources/hacker-news.js";
 import { searchRegistryResults } from "./sources/registries.js";
 import { GitHubRequestScheduler } from "./github-scheduler.js";
-import { searchTavilyResult } from "./sources/tavily.js";
+import { searchTavilyDiscoveryResult } from "./sources/tavily.js";
 
 export type { RawCandidate } from "./candidate.js";
 
-const USER_AGENT = "reuse-before-generate-mcp/0.4";
+const USER_AGENT = "reuse-before-generate-mcp/0.5";
 const GITHUB_API = "https://api.github.com";
 const githubScheduler = new GitHubRequestScheduler();
 
@@ -254,6 +258,61 @@ export async function searchGitHubResult(
   }
 }
 
+/**
+ * Runs a small, diverse set of repository lanes from the caller-understood
+ * intent. Each lane gets its own evidence identity, so later ranking can
+ * reward agreement without pretending the formulations are equivalent.
+ */
+export async function searchGitHubPlanResult(
+  plan: QueryPlan,
+  limit = 15,
+): Promise<Result<RawCandidate[]>> {
+  const { category, outcome, synonyms } = plan.formulations;
+  const constraintQuery = plan.constraints.length > 0
+    ? `${category} ${plan.constraints.slice(0, 2).join(" ")}`
+    : `${outcome} in:name,description,readme`;
+  const queries = uniqueQueries(
+    `${category} in:name,description,readme`,
+    synonyms ? `${synonyms} in:name,description,readme` : undefined,
+    constraintQuery,
+    `${category} stars:0..3`,
+  ).slice(0, 4);
+
+  const results = await Promise.all(queries.map(async (
+    query,
+    lane,
+  ): Promise<Result<RawCandidate[]>> => {
+    try {
+      const items = await fetchGitHubSearch(
+        query,
+        query.includes("stars:0..3") ? Math.min(limit, 10) : limit,
+      );
+      return ok(
+        "github" as const,
+        items.map((item, index) =>
+          toGitHubCandidate(item, "github", query, index + 1)),
+      );
+    } catch (error) {
+      return err(
+        "github" as const,
+        `lane ${lane + 1}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }));
+  const successes = results.filter((result) => result.ok);
+  if (successes.length > 0) {
+    return ok(
+      "github",
+      mergeCandidates(successes.flatMap((result) => result.value)),
+    );
+  }
+  return err(
+    "github",
+    [...new Set(results.flatMap((result) => result.ok ? [] : [result.reason]))]
+      .join("; "),
+  );
+}
+
 /** Back-compat wrapper: returns candidates or [] on failure. */
 export async function searchGitHub(
   description: string,
@@ -421,7 +480,7 @@ export async function searchAllResults(
   const showHnQueries = uniqueQueries(category, outcome, synonyms);
 
   const generic = Promise.all([
-    searchGitHubResult(description, [category]),
+    searchGitHubPlanResult(plan),
     combineSourceQueries(
       "npm",
       npmQueries,
@@ -429,7 +488,7 @@ export async function searchAllResults(
     ),
     combineSourceQueries("gitlab", gitLabQueries, searchGitLabResult),
     combineSourceQueries("hackernews", showHnQueries, searchShowHnResult),
-    searchTavilyResult(category),
+    searchTavilyDiscoveryResult(category, synonyms),
   ]);
   const python = plan.ecosystem === "python"
     ? searchPythonResult(description, [category])

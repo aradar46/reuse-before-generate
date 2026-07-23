@@ -4,18 +4,21 @@ The technical detail behind the one-paragraph summary in the README.
 
 ## The pipeline
 
-1. **Plan** (`src/query-plan.ts`) — normalizes exactly three optional
-   formulations supplied by the calling agent: category, outcome, and
-   synonyms. Without them, the legacy description and required keywords
-   fill category and outcome. Ecosystem detection uses only explicit Python,
-   Rust, Ruby, PHP, or JVM signals.
+1. **Plan** (`src/query-plan.ts`) — normalizes category, outcome, synonyms,
+   optional must-have constraints, and an optional artifact type
+   (`application`, `service`, `cli`, or `library`) supplied by the calling
+   agent. Older clients fall back to conservative artifact inference.
+   Ecosystem detection uses only explicit Python, Rust, Ruby, PHP, or JVM
+   signals.
 
 2. **Search** (`src/search.ts`) — executes a bounded plan. GitHub requests
    share one rate-aware scheduler and are serialized across tool calls.
-   GitHub gets two category queries (general relevance and `stars:0..3`);
+   GitHub gets at most four diverse queries (category, synonym, constraint or
+   outcome, and `stars:0..3`);
    npm gets at most two unique formulations; GitLab gets category and
    outcome; Show HN gets at most three; and optional Tavily web discovery
-   gets one category query. npm uses category and synonym formulations, not
+   gets separate reusable-project and existing-product queries. npm uses
+   category and synonym formulations, not
    the free-form outcome. An explicit Python plan adds one
    `language:python` GitHub query. Rust, Ruby, PHP, or JVM adds one matching
    registry query. Duplicate or empty formulations can reduce these counts;
@@ -35,11 +38,12 @@ The technical detail behind the one-paragraph summary in the README.
    maintenance checks it cannot satisfy. These are evidence pools, not a
    semantic verdict that the proposal is duplicated.
 
-5. **Re-rank and report** (`src/rerank.ts`, `src/report.ts`) — returns
-   retrieval evidence plus instructions for the calling agent to judge
-   functional overlap. Coverage separately names searched, unavailable, and
-   failed sources. Missing optional configuration is not mislabeled as a
-   failed attempt. Operational source failure prevents an all-clear response.
+5. **Prescore, re-rank, and report** (`src/relevance.ts`, `src/rerank.ts`,
+   `src/report.ts`) — applies a deterministic, inspectable ranking correction
+   for intent coverage, lane agreement, artifact fit, and common retrieval
+   noise. It returns those signals with the evidence; the calling agent still
+   judges functional overlap. Coverage separately names searched,
+   unavailable, and failed sources.
 
 ## Why the server does not call an LLM
 
@@ -138,7 +142,7 @@ the rest exist for specific situations.
 | Variable | Effect |
 |---|---|
 | `GITHUB_TOKEN` | Raises GitHub's search rate limit from 10/min to 30/min. Worth setting. |
-| `TAVILY_API_KEY` | Enables one bounded Tavily web search so projects and competing products outside developer indexes can surface. |
+| `TAVILY_API_KEY` | Enables two bounded Tavily web searches so reusable projects and competing products outside developer indexes can surface separately. |
 | `REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1` | Stops writing the local usage log entirely. |
 | `REUSE_BEFORE_GENERATE_TELEMETRY_URL` | POSTs each event to a collector you run. Nothing is bundled or defaulted; without this, nothing leaves the machine. |
 | `REUSE_BEFORE_GENERATE_SHOW_ENERGY=1` | Appends an estimated "Wh saved" line to the tool output. Off by default, deliberately: it is an order-of-magnitude guess, and it increments as soon as a maintained candidate is found — before the agent has judged whether that candidate is actually relevant. It is not a measurement. |
@@ -178,6 +182,7 @@ same owner.
 npm test                                              # offline unit tests, ~1s
 npm run check -- "<description>" --keywords a,b,c     # drive the pipeline locally
 npm run check -- "<description>" --category "..." --outcome "..." --synonyms "..."
+npm run check -- "<description>" --category "..." --outcome "..." --synonyms "..." --constraints offline,self-hosted --artifact-type application
 npm run eval                                          # scored recall against live APIs
 npm run eval -- --diff --save                         # compare and save one clean full run
 npm run eval -- --case json-viewer                    # iterate on one case

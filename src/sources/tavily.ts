@@ -1,11 +1,12 @@
 import { z } from "zod";
 import type { RawCandidate } from "../candidate.js";
+import { mergeCandidates } from "../canonicalize.js";
 import { httpGet, httpPostJson } from "../http.js";
 import { err, ok, unavailable, type Result } from "../result.js";
 
 const SEARCH_URL = "https://api.tavily.com/search";
 const TIMEOUT_MS = 8_000;
-const USER_AGENT = "reuse-before-generate-mcp/0.4";
+const USER_AGENT = "reuse-before-generate-mcp/0.5";
 
 const TavilySearchResponse = z.object({
   results: z.array(z.object({
@@ -174,4 +175,36 @@ export async function searchTavilyResult(
       error instanceof Error ? error.message : String(error),
     );
   }
+}
+
+/**
+ * Keeps reusable implementations and existing products in separate recall
+ * lanes. Product-oriented pages otherwise crowd repositories out of a single
+ * broad web query, while an open-source-only query hides useful competition.
+ */
+export async function searchTavilyDiscoveryResult(
+  category: string,
+  synonyms?: string,
+): Promise<Result<RawCandidate[]>> {
+  if (!process.env.TAVILY_API_KEY?.trim()) {
+    return unavailable("web", "TAVILY_API_KEY not configured");
+  }
+
+  const reuseQuery = `${category} open source self-hosted`;
+  const productQuery = `${synonyms?.trim() || category} software product`;
+  const results = await Promise.all([
+    searchTavilyResult(reuseQuery, 5),
+    searchTavilyResult(productQuery, 5),
+  ]);
+  const successes = results.filter((result) => result.ok);
+  if (successes.length > 0) {
+    return ok(
+      "web",
+      mergeCandidates(successes.flatMap((result) => result.value)),
+    );
+  }
+  const reasons = [...new Set(
+    results.flatMap((result) => result.ok ? [] : [result.reason]),
+  )];
+  return err("web", reasons.join("; "));
 }

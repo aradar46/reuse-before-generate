@@ -58,3 +58,62 @@ test("explicit formulations retain ecosystem signals from the original input", (
 
   assert.equal(plan.ecosystem, "python");
 });
+
+test("buildQueryPlan preserves explicit constraints and artifact type", () => {
+  const plan = buildQueryPlan(
+    "A private mobile cycle tracker",
+    ["cycle", "tracker", "mobile"],
+    {
+      category: "period cycle tracker",
+      outcome: "track menstrual cycles",
+      synonyms: "fertility calendar",
+      constraints: ["privacy", "offline", "Android iOS"],
+      artifactType: "application",
+    },
+  );
+
+  assert.deepEqual(plan.constraints, ["privacy", "offline", "Android iOS"]);
+  assert.equal(plan.artifactType, "application");
+});
+
+test("buildQueryPlan infers artifact type for older callers", () => {
+  assert.equal(
+    buildQueryPlan(
+      "A command-line utility for searching files",
+      ["terminal", "search", "regex"],
+    ).artifactType,
+    "cli",
+  );
+  assert.equal(
+    buildQueryPlan(
+      "A TypeScript library for parsing configuration",
+      ["typescript", "parser", "configuration"],
+    ).artifactType,
+    "library",
+  );
+  assert.equal(
+    buildQueryPlan(
+      "A hosted service for collecting application logs",
+      ["logs", "observability", "hosted"],
+    ).artifactType,
+    "service",
+  );
+  assert.equal(
+    buildQueryPlan(
+      "Something for organizing personal relationships",
+      ["relationships", "organizer", "contacts"],
+    ).artifactType,
+    "application",
+  );
+});
+
+test("buildQueryPlan normalizes and deduplicates constraints", () => {
+  const plan = buildQueryPlan("A private tracker", ["private", "tracker"], {
+    category: "personal tracker",
+    outcome: "track private records",
+    synonyms: "private journal",
+    constraints: [" privacy ", "Offline", "offline", ""],
+  });
+
+  assert.deepEqual(plan.constraints, ["privacy", "Offline"]);
+});

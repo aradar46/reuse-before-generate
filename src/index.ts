@@ -11,10 +11,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { runCheckBeforeBuilding } from "./check.js";
+import { ARTIFACT_TYPES } from "./query-plan.js";
 
 const server = new McpServer({
   name: "reuse-before-generate",
-  version: "0.4.0",
+  version: "0.5.0",
 });
 
 server.registerTool(
@@ -50,10 +51,15 @@ server.registerTool(
           category: z.string().min(2),
           outcome: z.string().min(2),
           synonyms: z.string().min(2),
+          constraints: z
+            .array(z.string().min(2))
+            .max(5)
+            .optional(),
+          artifactType: z.enum(ARTIFACT_TYPES).optional(),
         })
         .optional()
         .describe(
-          "Optional high-quality search formulations inferred semantically by the calling agent: category names what this is, outcome says what it accomplishes, and synonyms supplies distinct terminology maintainers or product makers may use. Each formulation must be specific enough to retrieve meaningful alternatives.",
+          "Optional high-quality intent inferred semantically by the calling agent: category names what this is, outcome says what it accomplishes, synonyms supplies distinct terminology maintainers or product makers may use, constraints capture must-have properties, and artifactType says whether the desired result is an application, hosted service, CLI, or library. Older callers may omit artifactType and constraints; the server will infer a conservative fallback.",
         ),
     }),
   },
