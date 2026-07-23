@@ -150,6 +150,37 @@ test("mergeCandidates retains the lowest rank for duplicate evidence", () => {
   assert.equal(merged[0].evidence[0].rank, 2);
 });
 
+test("mergeCandidates replaces an invalid duplicate rank with a valid rank", () => {
+  const merged = mergeCandidates([
+    candidate({
+      evidence: [{
+        source: "github",
+        sourceId: "acme/widget",
+        sourceUrl: "https://github.com/acme/widget",
+        destinationUrl: "https://github.com/acme/widget",
+        title: "Widget",
+        snippet: "invalid rank first",
+        query: "widget",
+        rank: 0,
+      }],
+    }),
+    candidate({
+      evidence: [{
+        source: "github",
+        sourceId: "acme/widget",
+        sourceUrl: "https://github.com/acme/widget",
+        destinationUrl: "https://github.com/acme/widget",
+        title: "Widget",
+        snippet: "valid rank second",
+        query: "widget",
+        rank: 1,
+      }],
+    }),
+  ]);
+
+  assert.equal(merged[0].evidence[0].rank, 1);
+});
+
 test("classifyCandidate requires explicit commercial evidence", () => {
   assert.equal(classifyCandidate(candidate({ description: "A great business tool" })), "unknown");
   assert.equal(

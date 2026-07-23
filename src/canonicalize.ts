@@ -52,12 +52,24 @@ function evidenceKey(evidence: Evidence): string {
   return `${evidence.source}\u0000${evidence.sourceId}\u0000${evidence.query}`;
 }
 
+function isValidRank(rank: number): boolean {
+  return Number.isFinite(rank) && rank > 0;
+}
+
 function dedupeEvidence(evidence: readonly Evidence[]): Evidence[] {
   const best = new Map<string, Evidence>();
   for (const item of evidence) {
     const key = evidenceKey(item);
     const current = best.get(key);
-    if (!current || item.rank < current.rank) best.set(key, item);
+    if (!current) {
+      best.set(key, item);
+      continue;
+    }
+    const itemIsValid = isValidRank(item.rank);
+    const currentIsValid = isValidRank(current.rank);
+    if ((itemIsValid && !currentIsValid) || (itemIsValid && currentIsValid && item.rank < current.rank)) {
+      best.set(key, item);
+    }
   }
   return [...best.values()];
 }
