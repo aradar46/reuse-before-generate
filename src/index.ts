@@ -14,7 +14,7 @@ import { runCheckBeforeBuilding } from "./check.js";
 
 const server = new McpServer({
   name: "reuse-before-generate",
-  version: "0.2.3",
+  version: "0.3.0",
 });
 
 server.registerTool(

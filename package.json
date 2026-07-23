@@ -1,6 +1,6 @@
 {
   "name": "reuse-before-generate",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "MCP tool: before scaffolding a new project, check whether it already exists and suggest extending a maintained alternative instead of rebuilding.",
   "type": "module",
   "bin": {
@@ -13,7 +13,7 @@
     "check": "npm run build && node dist/cli.js",
     "dev": "tsc -p tsconfig.json --watch",
     "eval": "npm run build && node test/eval/run.mjs",
-    "test": "npm run build && REUSE_BEFORE_GENERATE_STATE_DIR=.test-state node --test test/unit/*.test.ts",
+    "test": "npm run build && REUSE_BEFORE_GENERATE_STATE_DIR=.test-state node --test test/unit/*.test.ts test/eval/*.test.mjs",
     "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [

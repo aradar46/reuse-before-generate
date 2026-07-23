@@ -49,3 +49,59 @@ test("returns an empty description when none is given", () => {
   assert.equal(parseArgs(argv()).description, "");
   assert.equal(parseArgs(argv("--keywords", "a,b")).description, "");
 });
+
+test("parses complete structured query formulations into explicit fields", () => {
+  const out = parseArgs(argv(
+    "find a terminal JSON viewer",
+    "--category", "terminal JSON viewer",
+    "--outcome", "inspect and navigate JSON",
+    "--synonyms", "JSON browser processor",
+  ));
+
+  assert.equal(out.description, "find a terminal JSON viewer");
+  assert.deepEqual(out.queries, {
+    category: "terminal JSON viewer",
+    outcome: "inspect and navigate JSON",
+    synonyms: "JSON browser processor",
+  });
+});
+
+test("omits queries unless all three formulations are nonempty", () => {
+  const out = parseArgs(argv(
+    "find a terminal JSON viewer",
+    "--category", "terminal JSON viewer",
+    "--outcome", "inspect JSON",
+  ));
+
+  assert.equal(out.description, "find a terminal JSON viewer");
+  assert.equal(out.queries, undefined);
+});
+
+test("recognized flag values never leak into the description", () => {
+  const out = parseArgs(argv(
+    "find", "--category", "terminal JSON viewer",
+    "something", "--keywords", "json,viewer,terminal",
+    "--outcome", "inspect JSON",
+    "--synonyms", "browser processor",
+  ));
+
+  assert.equal(out.description, "find something");
+  assert.deepEqual(out.keywords, ["json", "viewer", "terminal"]);
+});
+
+test("structured formulations preserve legacy keyword parsing", () => {
+  const out = parseArgs(argv(
+    "format python",
+    "-k", "black, formatter, style",
+    "--category", "Python formatter",
+    "--outcome", "format Python source",
+    "--synonyms", "code style autoformatter",
+  ));
+
+  assert.deepEqual(out.keywords, ["black", "formatter", "style"]);
+  assert.deepEqual(out.queries, {
+    category: "Python formatter",
+    outcome: "format Python source",
+    synonyms: "code style autoformatter",
+  });
+});

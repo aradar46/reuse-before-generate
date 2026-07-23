@@ -1,160 +1,224 @@
-// Recall corpus. Each case is a description with at least one known-real
-// existing tool that a good search ought to surface.
-//
-// `variants` holds alternative keyword sets for the same description. The
-// README records that swapping one reasonable synonym ("capture" vs
-// "chrome") flipped a result from found to missed; variants turn that
-// anecdote into a measured number rather than a remembered anecdote.
-//
-// `expectNoMatch: true` marks a true-negative case: the correct outcome is
-// finding nothing. Scored separately so it cannot move recall.
+// Live retrieval corpus. Every case supplies one bounded query plan:
+// category, outcome, and distinct synonyms are searched together once.
+// Targets are scored only within `expectedPool`; retrieval is not semantic
+// judgment, so the deliberately absurd true-negative records pool size only.
 
 export const cases = [
   {
     id: "python-formatter",
-    description:
-      "A command-line tool that formats Python source code automatically to a consistent style.",
+    description: "A command-line tool that formats Python source code automatically to a consistent style.",
+    keywords: ["python", "formatter", "code"],
+    queries: {
+      category: "Python code formatter",
+      outcome: "format Python source consistently",
+      synonyms: "Python autoformatter code style",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["black", "ruff", "psf/black", "astral-sh/ruff", "yapf"],
-    variants: [
-      ["python", "formatter", "code"],
-      ["python", "format", "style"],
-    ],
   },
   {
     id: "changelog-generator",
-    description:
-      "A command-line tool that generates and updates a changelog file by parsing conventional commit messages from git history, grouping them by type and version tag.",
+    description: "A command-line tool that generates and updates a changelog file by parsing conventional commit messages from git history, grouping them by type and version tag.",
+    keywords: ["changelog", "conventional", "commits"],
+    queries: {
+      category: "changelog generator",
+      outcome: "generate changelogs from conventional commits",
+      synonyms: "release notes git history",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["git-cliff", "auto-changelog", "standard-version", "conventional-changelog"],
-    variants: [
-      ["changelog", "conventional", "commits"],
-      ["changelog", "generator", "git"],
-    ],
   },
   {
     id: "secret-scanner",
-    description:
-      "A tool that detects secrets and API keys accidentally committed to a git repository.",
+    description: "A tool that detects secrets and API keys accidentally committed to a git repository.",
+    keywords: ["git", "secrets", "detect", "leak"],
+    queries: {
+      category: "git secret scanner",
+      outcome: "detect leaked credentials in repositories",
+      synonyms: "API key leak detection",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["gitleaks", "trufflehog", "detect-secrets", "git-secrets"],
-    variants: [
-      ["git", "secrets", "detect", "leak"],
-      ["secret", "scanner", "detect", "git"],
-    ],
   },
   {
     id: "actions-debugger",
-    // Regression guard for a real gap found via a live self-test: this
-    // matches a genuine niche tool (ruzmuh/actl, 0 stars, pushed the same
-    // week) that the old star-based verify.ts filter silently discarded,
-    // and that GitHub's default search ranking buries against high-star
-    // noise unless the low-star search lane in searchGitHub() catches it.
-    // Note: two OTHER known-real matches for this description
-    // (Socialpranker/actdbg, aradar46/fermata) still don't reliably
-    // surface — GitHub's search index for very small/oddly-named repos is
-    // a harder, only partially-solved problem. This case intentionally
-    // accepts partial recall rather than requiring all three.
-    description:
-      "A debugger for GitHub Actions. Pause a failing workflow at the point of failure, get an interactive shell inside the running runner, inspect state, fix the issue, and re-run just the broken step instead of the whole pipeline.",
+    description: "A debugger for GitHub Actions. Pause a failing workflow at the point of failure, get an interactive shell inside the running runner, inspect state, fix the issue, and re-run just the broken step instead of the whole pipeline.",
+    keywords: ["debugger", "actions", "workflow"],
+    queries: {
+      category: "GitHub Actions debugger",
+      outcome: "debug failing workflows with an interactive shell",
+      synonyms: "CI runner SSH workflow debugging",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["actl", "action-tmate", "upterm", "actdbg", "fermata"],
-    variants: [["debugger", "actions", "workflow"]],
   },
   {
     id: "json-viewer",
-    // Regression guard: verb-based keywords ("pretty-print", "colorize")
-    // matching the USER's framing of the problem failed to surface any
-    // real match. The dominant real tool describes itself by function
-    // ("Terminal JSON viewer & processor"), not by the action the user
-    // asked for — "viewer" is the word that actually works.
-    description:
-      "A command-line tool that pretty-prints and colorizes JSON files for terminal viewing.",
+    description: "A command-line tool that pretty-prints and colorizes JSON files for terminal viewing.",
+    keywords: ["json", "viewer", "terminal"],
+    queries: {
+      category: "terminal JSON viewer",
+      outcome: "inspect and navigate JSON in a terminal",
+      synonyms: "JSON browser processor CLI",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["fx", "jless", "gron", "jq", "jnv"],
-    variants: [
-      ["json", "viewer", "terminal"],
-      ["json", "pretty-print", "colorize"],
-    ],
   },
   {
     id: "postgres-mcp",
-    description:
-      "An MCP server that lets an AI coding agent run read-only SQL queries against a Postgres database.",
+    description: "An MCP server that lets an AI coding agent run read-only SQL queries against a Postgres database.",
+    keywords: ["postgres", "mcp", "database", "query"],
+    queries: {
+      category: "Postgres MCP server",
+      outcome: "query PostgreSQL from an AI agent",
+      synonyms: "model context protocol SQL database",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["postgres-mcp"],
-    variants: [["postgres", "mcp", "database", "query"]],
   },
   {
     id: "html-proofer",
-    // Regression guard: same lesson as the JSON-viewer case from the other
-    // direction — "static site"/"alt-text" (the user's framing) never
-    // surfaced the dominant tool, which describes itself as validating
-    // "rendered HTML files," not static sites or alt text specifically.
-    description:
-      "A CLI tool for static site generators that checks for dead image links and missing alt text before deploy.",
+    description: "A CLI tool for static site generators that checks for dead image links and missing alt text before deploy.",
+    keywords: ["html", "proofer", "validate", "link"],
+    queries: {
+      category: "HTML link checker CLI",
+      outcome: "validate rendered HTML links and images",
+      synonyms: "website proofer broken links",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["html-proofer", "broken-link-checker", "linkinator"],
-    variants: [
-      ["html", "proofer", "validate", "link"],
-      ["static", "site", "alt-text", "links"],
-    ],
   },
   {
     id: "no-real-competitor",
-    // True-negative guard: deliberately absurd and specific enough that no
-    // real tool should match. The entire "clear to build" path is otherwise
-    // untested — a search returning plausible-looking matches for
-    // everything is as broken as one returning nothing, and only this kind
-    // of case catches it.
-    description:
-      "A command-line tool that converts recipes for Hungarian pastry into MIDI files whose note durations encode the baking times.",
+    description: "A command-line tool that converts recipes for Hungarian pastry into MIDI files whose note durations encode the baking times.",
+    keywords: ["recipe", "midi", "baking"],
+    queries: {
+      category: "Hungarian pastry MIDI converter",
+      outcome: "encode recipe baking times as MIDI notes",
+      synonyms: "dessert recipe music sequencer",
+    },
+    expectedPool: "reuse",
     expectAnyOf: [],
     expectNoMatch: true,
-    variants: [["recipe", "midi", "baking"]],
   },
   {
     id: "vague-phrasing",
-    // Non-native / roundabout phrasing. The tool's premise is that the
-    // calling agent supplies good keywords even when the user's own words
-    // are imprecise, so the corpus needs at least one case where they are.
-    description:
-      "the thing that check my code is clean automatic before i push, catch mistake early",
+    description: "the thing that check my code is clean automatic before i push, catch mistake early",
+    keywords: ["git", "hooks", "pre-commit"],
+    queries: {
+      category: "pre-commit code quality hook",
+      outcome: "run checks automatically before git push",
+      synonyms: "staged files lint git hooks",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["husky", "pre-commit", "lint-staged", "lefthook"],
-    variants: [
-      ["git", "hooks", "pre-commit"],
-      ["lint", "staged", "commit"],
-    ],
   },
   {
     id: "npm-dominant",
-    // The dominant answer is an npm package rather than a GitHub repo,
-    // exercising the npm lane as the primary source rather than a
-    // supplement.
-    description:
-      "A JavaScript library for parsing command-line arguments into an options object, with support for aliases and defaults.",
+    description: "A JavaScript library for parsing command-line arguments into an options object, with support for aliases and defaults.",
+    keywords: ["cli", "arguments", "parser"],
+    queries: {
+      category: "JavaScript CLI argument parser",
+      outcome: "parse command line options aliases and defaults",
+      synonyms: "Node argv flags library",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["yargs", "commander", "minimist", "meow", "arg"],
-    variants: [
-      ["cli", "arguments", "parser"],
-      ["command-line", "options", "parse"],
-    ],
   },
   {
     id: "python-dominant",
-    // Python-dominant target: measures whether the language:python lane
-    // earns its request. It is the case that lane exists for.
-    description:
-      "A Python library for making HTTP requests with a simple API, handling sessions, redirects and JSON decoding.",
+    description: "A Python library for making HTTP requests with a simple API, handling sessions, redirects and JSON decoding.",
+    keywords: ["python", "http", "requests"],
+    queries: {
+      category: "Python HTTP client library",
+      outcome: "make web requests with sessions redirects and JSON",
+      synonyms: "Python requests networking package",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["requests", "httpx", "aiohttp", "urllib3"],
-    variants: [
-      ["python", "http", "requests"],
-      ["http", "client", "session"],
-    ],
   },
   {
     id: "low-star-niche",
-    // Second low-star regression guard alongside actions-debugger. Niche
-    // enough that the winners have modest star counts, so it detects any
-    // change that quietly reintroduces popularity bias into the funnel.
-    description:
-      "A terminal tool that shows which process is listening on a given TCP port and lets you kill it interactively.",
+    description: "A terminal tool that shows which process is listening on a given TCP port and lets you kill it interactively.",
+    keywords: ["port", "kill", "process"],
+    queries: {
+      category: "terminal port process killer",
+      outcome: "find and kill a process listening on a TCP port",
+      synonyms: "interactive port cleanup CLI",
+    },
+    expectedPool: "reuse",
     expectAnyOf: ["killport", "fkill", "port-killer", "lsof"],
-    variants: [
-      ["port", "kill", "process"],
-      ["tcp", "listening", "terminal"],
-    ],
+  },
+  {
+    id: "rust-ripgrep",
+    description: "A fast Rust command-line program for recursively searching text in files while respecting ignore rules.",
+    keywords: ["rust", "recursive", "text", "search"],
+    queries: {
+      category: "Rust recursive text search",
+      outcome: "search files quickly while respecting ignore rules",
+      synonyms: "grep code search Rust CLI",
+    },
+    expectedPool: "reuse",
+    expectAnyOf: ["ripgrep", "burntsushi/ripgrep"],
+  },
+  {
+    id: "ruby-rubocop",
+    description: "A Ruby static analyzer and formatter that enforces a configurable code style.",
+    keywords: ["ruby", "linter", "formatter"],
+    queries: {
+      category: "Ruby linter formatter",
+      outcome: "enforce configurable Ruby code style",
+      synonyms: "Ruby static analysis style checker",
+    },
+    expectedPool: "reuse",
+    expectAnyOf: ["rubocop", "rubocop/rubocop"],
+  },
+  {
+    id: "php-monolog",
+    description: "A PHP logging library with handlers for files, sockets, databases and web services.",
+    keywords: ["php", "logging", "handlers"],
+    queries: {
+      category: "PHP logging library",
+      outcome: "send application logs through configurable handlers",
+      synonyms: "PHP logger PSR-3",
+    },
+    expectedPool: "reuse",
+    expectAnyOf: ["monolog", "seldaek/monolog"],
+  },
+  {
+    id: "jvm-picocli",
+    description: "A JVM library for building command-line applications with annotated options, subcommands and generated help.",
+    keywords: ["jvm", "cli", "arguments"],
+    queries: {
+      category: "JVM command line library",
+      outcome: "build annotated CLI options subcommands and help",
+      synonyms: "Java argument parser CLI framework",
+    },
+    expectedPool: "reuse",
+    expectAnyOf: ["picocli", "info.picocli"],
+  },
+  {
+    id: "calendly-scheduling",
+    description: "A hosted product that lets people share availability and book meetings without exchanging emails.",
+    keywords: ["meeting", "scheduling", "availability"],
+    queries: {
+      category: "meeting scheduling software",
+      outcome: "share availability and let people book meetings",
+      synonyms: "appointment booking calendar SaaS",
+    },
+    expectedPool: "competition",
+    expectAnyOf: ["calendly", "calendly.com"],
+  },
+  {
+    id: "screen-studio-recorder",
+    description: "A commercial desktop recorder for creating polished product demo videos with automatic zoom and smooth cursor movement.",
+    keywords: ["screen", "recorder", "product", "demo"],
+    queries: {
+      category: "product demo screen recorder",
+      outcome: "record polished demos with automatic zoom",
+      synonyms: "desktop capture smooth cursor video",
+    },
+    expectedPool: "competition",
+    expectAnyOf: ["screen studio", "screen.studio"],
   },
 ];

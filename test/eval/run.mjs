@@ -1,25 +1,21 @@
-// Scored recall eval. Hits live GitHub and npm — deliberately NOT part of
-// `npm test`, because upstream ranking drifts independently of this
-// codebase and a flaky signal that blocks merges gets ignored, then
-// disabled, then deleted.
+// Live retrieval evaluation. This is intentionally separate from `npm test`:
+// upstream indexes drift, and source availability must be reported rather
+// than converted into deterministic test failures.
 //
-//   npm run eval               score the corpus, print per-case ranks
-//   npm run eval -- --diff     also diff against the committed baseline
-//   npm run eval -- --save     rewrite the baseline
-//   npm run eval -- --case id  run a single case (fast iteration)
-//
-// A full unauthenticated run takes ~4-5 minutes because of rate-limit
-// spacing. Do NOT `npm run build` while one is in flight: the run imports
-// from dist/, and tsc rewriting those files mid-run kills it silently.
-// Set GITHUB_TOKEN to cut the wait roughly in half.
-//
-// Why rank and not pass/fail: pass/fail cannot tell you that a change moved
-// the right answer from position 14 to position 3, which is exactly the
-// signal needed when tuning queries.
+//   npm run eval -- --diff
+//   npm run eval -- --diff --save
+//   npm run eval -- --case rust-ripgrep
 
 import { searchAllResults } from "../../dist/search.js";
-import { verifyAll } from "../../dist/verify.js";
+import { prepareCandidates } from "../../dist/verify.js";
+import { buildQueryPlan } from "../../dist/query-plan.js";
 import { cases } from "./cases.mjs";
+import {
+  formulationHitRate,
+  githubRequestsForPlan,
+  rankExpectedTarget,
+  summarize,
+} from "./helpers.mjs";
 import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,10 +23,10 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BASELINE = join(HERE, "baseline.json");
 const DIST_SEARCH = join(HERE, "..", "..", "dist", "search.js");
+const GITHUB_LIMIT_PER_MINUTE = process.env.GITHUB_TOKEN ? 30 : 10;
+const HEADROOM = 1.25;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Rebuilding dist/ mid-run kills the process silently — Node has already
- * loaded these modules, and tsc rewriting them produces a confusing partial
- * failure minutes in. Catch it and say so plainly instead. */
 function distStamp() {
   try {
     return statSync(DIST_SEARCH).mtimeMs;
@@ -39,80 +35,118 @@ function distStamp() {
   }
 }
 
-// GitHub's search endpoint allows 10 requests/min unauthenticated, 30/min
-// with a token (verified against /rate_limit). Going over does not error
-// loudly — it silently turns real hits into MISSes via 403, which is
-// indistinguishable from a genuine recall failure in the scores.
-//
-// Derived rather than hardcoded, because the per-variant request count is
-// exactly the kind of thing that drifts: adding the language:python lane
-// took it from 2 to 3, which silently invalidated a hand-tuned 12s delay
-// and produced 5 phantom misses before anyone noticed.
-const GITHUB_REQUESTS_PER_VARIANT = 3; // primary + low-star + language:python
-const GITHUB_LIMIT_PER_MIN = process.env.GITHUB_TOKEN ? 30 : 10;
-// 25% headroom: the limit is a sliding window, not a clean per-minute reset.
-const DEFAULT_SLEEP_MS = Math.ceil(
-  (60_000 / (GITHUB_LIMIT_PER_MIN / GITHUB_REQUESTS_PER_VARIANT)) * 1.25,
-);
-const SLEEP_MS = Number(process.env.EVAL_SLEEP_MS ?? DEFAULT_SLEEP_MS);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function matches(candidateId, expectAnyOf) {
-  const lower = candidateId.toLowerCase();
-  return expectAnyOf.some((needle) => lower.includes(needle.toLowerCase()));
+function planFor(testCase) {
+  return buildQueryPlan(testCase.description, testCase.keywords, testCase.queries);
 }
 
-/** Rank of the first matching candidate (1-based), or null for a miss. */
-function rankOfFirstMatch(candidates, expectAnyOf) {
-  const idx = candidates.findIndex((c) => matches(c.id, expectAnyOf));
-  return idx === -1 ? null : idx + 1;
+function delayAfterPlan(plan) {
+  if (process.env.EVAL_SLEEP_MS !== undefined) {
+    return Number(process.env.EVAL_SLEEP_MS);
+  }
+  const requests = githubRequestsForPlan(plan);
+  return Math.ceil((60_000 * requests / GITHUB_LIMIT_PER_MINUTE) * HEADROOM);
 }
 
-async function runVariant(description, keywords) {
-  const results = await searchAllResults(description, keywords);
-  const failures = results.filter((r) => !r.ok).map((r) => `${r.source}:${r.reason}`);
-  const raw = results.flatMap((r) => (r.ok ? r.value : []));
-  const verified = await verifyAll(raw);
-  const maintained = verified.filter((c) => c.maintained);
-  return { maintained, failures };
-}
-
-/** Which source produced the winning candidate. Answers "is this lane
- * earning its extra request?" for the two speculative ones — GitHub's
- * low-star lane and the language:python lane both cost a request per call
- * and exist on the theory that they surface things the primary query
- * buries. If neither ever produces a winner, both should go. */
-function creditSource(maintained, rank) {
-  if (rank === null) return null;
-  return maintained[rank - 1]?.source ?? null;
-}
-
-function summarize(rows) {
-  // True-negative cases are excluded from recall: "found nothing" is the
-  // right answer there, so counting them would silently deflate the metric.
-  const scored = rows.filter((r) => !r.trueNegative);
-  const found = scored.filter((r) => r.best !== null);
-  const recallAt = (k) =>
-    scored.length === 0
-      ? 0
-      : scored.filter((r) => r.best !== null && r.best <= k).length / scored.length;
-  const mrr =
-    scored.length === 0
-      ? 0
-      : scored.reduce((acc, r) => acc + (r.best ? 1 / r.best : 0), 0) / scored.length;
-
+async function runCase(testCase) {
+  const results = await searchAllResults(
+    testCase.description,
+    testCase.keywords,
+    testCase.queries,
+  );
+  const sourceFailures = results
+    .filter((result) => !result.ok)
+    .map((result) => ({
+      source: result.source,
+      reason: result.reason,
+      required: result.source !== "web",
+    }));
+  const raw = results.flatMap((result) => result.ok ? result.value : []);
+  const candidates = await prepareCandidates(raw);
+  const matched = rankExpectedTarget(
+    candidates,
+    testCase.expectedPool,
+    testCase.expectAnyOf,
+  );
+  const evidenceSources = matched.winner
+    ? [...new Set(matched.winner.evidence.map((item) => item.source))]
+    : [];
   return {
-    generatedAt: new Date().toISOString(),
-    cases: scored.length,
-    recallAt5: Number(recallAt(5).toFixed(3)),
-    recallAt10: Number(recallAt(10).toFixed(3)),
-    recallAtAll: Number((found.length / (scored.length || 1)).toFixed(3)),
-    mrr: Number(mrr.toFixed(3)),
-    falsePositivesOnTrueNegatives: rows
-      .filter((r) => r.trueNegative)
-      .reduce((acc, r) => acc + r.falsePositives, 0),
-    perCase: Object.fromEntries(rows.map((r) => [r.id, r.best])),
+    id: testCase.id,
+    expectedPool: testCase.expectedPool,
+    rank: testCase.expectNoMatch ? null : matched.rank,
+    poolSize: matched.poolSize,
+    evidenceSources,
+    formulationHitRate: formulationHitRate(matched.winner, testCase.queries),
+    sourceFailures,
+    webAttempted: results.some((result) => result.source === "web"),
+    retrievalCandidates: candidates.length,
+    trueNegative: testCase.expectNoMatch === true,
+    topHits: candidates
+      .filter((candidate) => candidate.pool === testCase.expectedPool)
+      .slice(0, 3)
+      .map((candidate) => candidate.id),
   };
+}
+
+function printSummary(summary) {
+  console.log("\n=== summary ===");
+  console.log(`reuse cases            ${summary.reuse.cases}`);
+  console.log(`reuse recall@5         ${summary.reuse.recallAt5}`);
+  console.log(`reuse recall@10        ${summary.reuse.recallAt10}`);
+  console.log(`competition cases      ${summary.competition.cases}`);
+  console.log(`competition recall@5   ${summary.competition.recallAt5}`);
+  console.log(`competition recall@10  ${summary.competition.recallAt10}`);
+  const unique = Object.entries(summary.uniqueSingleSourceWins)
+    .map(([source, wins]) => `${source}:${wins}`)
+    .join(", ");
+  console.log(`unique single-source wins  ${unique || "none"}`);
+  console.log(
+    `web availability       ${summary.webAvailability.attempted} attempted, ${summary.webAvailability.failed} failed`,
+  );
+  console.log(
+    `retrieval candidates on true-negative  ${summary.retrievalCandidatesOnTrueNegative}`,
+  );
+}
+
+function metricAt(summary, pool, metric) {
+  const value = summary?.[pool]?.[metric];
+  return typeof value === "number" ? value : null;
+}
+
+function printDiff(summary) {
+  if (!existsSync(BASELINE)) {
+    console.log("\n(no baseline yet; --save can create one)");
+    return;
+  }
+  const previous = JSON.parse(readFileSync(BASELINE, "utf-8"));
+  console.log("\n=== diff vs baseline ===");
+  console.log(`baseline from ${previous.generatedAt}`);
+  for (const pool of ["reuse", "competition"]) {
+    for (const metric of ["recallAt5", "recallAt10"]) {
+      const before = metricAt(previous, pool, metric);
+      const after = metricAt(summary, pool, metric);
+      if (before === null || after === null) {
+        console.log(`${pool}.${metric.padEnd(10)} schema changed`);
+        continue;
+      }
+      const delta = after - before;
+      const sign = delta > 0 ? "+" : "";
+      console.log(
+        `${pool}.${metric.padEnd(10)} ${before} -> ${after} (${sign}${delta.toFixed(3)})`,
+      );
+    }
+  }
+  let moved = 0;
+  for (const [id, current] of Object.entries(summary.perCase)) {
+    const prior = previous.perCase?.[id];
+    const before = typeof prior === "number" || prior === null
+      ? prior
+      : prior?.rank;
+    if (before === undefined || before === current.rank) continue;
+    moved += 1;
+    console.log(`  ${id}: ${before ?? "MISS"} -> ${current.rank ?? "MISS"}`);
+  }
+  if (moved === 0) console.log("  (no comparable per-case rank changes)");
 }
 
 async function main() {
@@ -121,163 +155,97 @@ async function main() {
   const wantSave = argv.includes("--save");
   const caseFlag = argv.indexOf("--case");
   const onlyCase = caseFlag === -1 ? null : argv[caseFlag + 1];
+  const selected = onlyCase ? cases.filter((testCase) => testCase.id === onlyCase) : cases;
 
-  const selected = onlyCase ? cases.filter((c) => c.id === onlyCase) : cases;
   if (selected.length === 0) {
     console.error(`no case with id "${onlyCase}". Known ids:`);
-    for (const c of cases) console.error(`  ${c.id}`);
+    for (const testCase of cases) console.error(`  ${testCase.id}`);
     process.exit(2);
   }
 
-  const rows = [];
-  let requestBudget = 0;
   const startStamp = distStamp();
+  const rows = [];
+  let priorPlan;
+  let githubRequestBudget = 0;
 
-  for (const [i, c] of selected.entries()) {
-    const variants = c.variants ?? [undefined];
-    const variantRanks = [];
-
-    for (const [vi, keywords] of variants.entries()) {
-      if (i > 0 || vi > 0) await sleep(SLEEP_MS);
-      if (distStamp() !== startStamp) {
-        console.error(
-          "\ndist/ changed mid-run (something rebuilt it). Scores so far are" +
-            "\nmixed across two builds and cannot be compared. Aborting.",
-        );
-        process.exit(3);
-      }
-      requestBudget += 1;
-      const { maintained, failures } = await runVariant(c.description, keywords);
-      const rank = rankOfFirstMatch(maintained, c.expectAnyOf);
-      variantRanks.push({
-        keywords: keywords ? keywords.join(",") : "(auto)",
-        rank,
-        pool: maintained.length,
-        failures,
-        source: creditSource(maintained, rank),
-        topHits: maintained.slice(0, 3).map((m) => m.id),
-      });
+  for (const testCase of selected) {
+    if (priorPlan) await sleep(delayAfterPlan(priorPlan));
+    if (distStamp() !== startStamp) {
+      console.error(
+        "\ndist/ changed mid-run. Results span builds and cannot be compared; aborting.",
+      );
+      process.exit(3);
     }
+    const plan = planFor(testCase);
+    githubRequestBudget += githubRequestsForPlan(plan);
+    const row = await runCase(testCase);
+    rows.push(row);
+    priorPlan = plan;
 
-    if (c.expectNoMatch) {
-      const falsePositives = variantRanks.filter((v) => v.rank !== null).length;
-      rows.push({
-        id: c.id,
-        best: null,
-        hitRate: 0,
-        variants: variantRanks,
-        trueNegative: true,
-        falsePositives,
-      });
-      continue;
-    }
-
-    // The headline rank for a case is its BEST variant: the tool
-    // instructs the calling agent to pick good keywords, so the best
-    // achievable result measures whether the target is reachable at all.
-    // Variant spread is reported separately, as fragility.
-    const hits = variantRanks.filter((v) => v.rank !== null).map((v) => v.rank);
-    const best = hits.length > 0 ? Math.min(...hits) : null;
-    const hitRate = variantRanks.length > 0 ? hits.length / variantRanks.length : 0;
-
-    rows.push({ id: c.id, best, hitRate, variants: variantRanks });
-  }
-
-  console.log("\n=== per case ===");
-  for (const r of rows) {
-    const label = r.trueNegative
-      ? r.falsePositives > 0
-        ? `FALSE POSITIVE x${r.falsePositives}`
-        : "correctly empty"
-      : r.best === null
+    const label = row.trueNegative
+      ? `${row.retrievalCandidates} retrieval candidate(s), not semantically judged`
+      : row.rank === null
         ? "MISS"
-        : `rank ${r.best}`;
-    const spread = r.trueNegative ? "" : `  variant hit-rate ${(r.hitRate * 100).toFixed(0)}%`;
-    console.log(`${r.id.padEnd(22)} ${label.padEnd(18)}${spread}`);
-    for (const v of r.variants) {
-      const vr = v.rank === null ? "MISS" : `#${v.rank}`;
-      const via = v.source ? ` via=${v.source}` : "";
-      console.log(`    ${vr.padEnd(6)} pool=${String(v.pool).padEnd(4)}${via} kw=${v.keywords}`);
-      if (v.rank === null && v.topHits.length > 0) {
-        console.log(`           got instead: ${v.topHits.join(", ")}`);
-      }
-      if (v.failures.length > 0) {
-        console.log(`           source failures: ${v.failures.join("; ")}`);
-      }
+        : `rank ${row.rank}`;
+    console.log(`${row.id.padEnd(24)} ${label} in ${row.expectedPool} pool (${row.poolSize})`);
+    if (row.rank !== null) {
+      console.log(
+        `  evidence=${row.evidenceSources.join(",") || "none"} formulation hit-rate=${(row.formulationHitRate * 100).toFixed(0)}%`,
+      );
+    } else if (!row.trueNegative && row.topHits.length > 0) {
+      console.log(`  got instead: ${row.topHits.join(", ")}`);
+    }
+    for (const failure of row.sourceFailures) {
+      console.log(
+        `  source failure: ${failure.source} (${failure.required ? "required" : "experimental"}) ${failure.reason}`,
+      );
     }
   }
 
   const summary = summarize(rows);
+  printSummary(summary);
+  if (wantDiff) printDiff(summary);
 
-  console.log("\n=== summary ===");
-  console.log(`cases scored  ${summary.cases}`);
-  console.log(`recall@5      ${summary.recallAt5}`);
-  console.log(`recall@10     ${summary.recallAt10}`);
-  console.log(`recall@all    ${summary.recallAtAll}`);
-  console.log(`MRR           ${summary.mrr}`);
-  console.log(`false positives on true-negative cases: ${summary.falsePositivesOnTrueNegatives}`);
-
-  if (wantDiff) {
-    if (!existsSync(BASELINE)) {
-      console.log("\n(no baseline yet — run with --save to create one)");
-    } else {
-      const prev = JSON.parse(readFileSync(BASELINE, "utf-8"));
-      console.log("\n=== diff vs baseline ===");
-      console.log(`baseline from ${prev.generatedAt}`);
-      for (const k of ["recallAt5", "recallAt10", "recallAtAll", "mrr"]) {
-        const delta = summary[k] - prev[k];
-        const sign = delta > 0 ? "+" : "";
-        const flag = Math.abs(delta) < 0.001 ? "" : delta > 0 ? "  BETTER" : "  WORSE";
-        console.log(`${k.padEnd(12)} ${prev[k]} -> ${summary[k]} (${sign}${delta.toFixed(3)})${flag}`);
-      }
-      let moved = 0;
-      for (const r of rows) {
-        const before = prev.perCase?.[r.id];
-        if (before === undefined) continue;
-        if (before !== r.best) {
-          moved += 1;
-          console.log(`  ${r.id}: ${before ?? "MISS"} -> ${r.best ?? "MISS"}`);
-        }
-      }
-      if (moved === 0) console.log("  (no per-case rank changes)");
-    }
-  }
-
-  // A rate-limited run scores real hits as MISSes, and a baseline built
-  // from one makes every later comparison meaningless — worse than having
-  // no baseline, because it looks authoritative. Count them and refuse.
-  const failedVariants = rows.reduce(
-    (acc, r) => acc + r.variants.filter((v) => v.failures.length > 0).length,
-    0,
-  );
-  if (failedVariants > 0) {
+  const requiredFailures = rows.flatMap((row) =>
+    row.sourceFailures.filter((failure) => failure.required));
+  const webFailures = rows.flatMap((row) =>
+    row.sourceFailures.filter((failure) => !failure.required));
+  if (requiredFailures.length > 0) {
     console.log(
-      `\nWARNING: ${failedVariants} of ${requestBudget} variant runs had a source failure.` +
-        `\nScores below are UNRELIABLE — a 403 looks exactly like a recall miss.` +
-        `\nRe-run with GITHUB_TOKEN set, or raise EVAL_SLEEP_MS.`,
+      `\nWARNING: ${requiredFailures.length} required attempted source failure(s); recall is unreliable.`,
+    );
+  }
+  if (webFailures.length > 0) {
+    console.log(
+      `\nNOTE: ${webFailures.length} experimental web failure(s); recorded but not baseline-blocking.`,
     );
   }
 
   if (wantSave) {
     if (onlyCase) {
-      console.error("\nrefusing to --save a single-case run: it would drop every other case from the baseline.");
+      console.error("\nrefusing to --save a single-case run.");
       process.exit(2);
     }
-    if (failedVariants > 0 && !argv.includes("--force")) {
+    if (requiredFailures.length > 0 && !argv.includes("--force")) {
       console.error(
-        `\nrefusing to --save: ${failedVariants} variant run(s) hit a source failure, so these` +
-          `\nscores understate real recall. Re-run cleanly, or pass --force if you really mean it.`,
+        `\nrefusing to --save: ${requiredFailures.length} required attempted source failure(s).`,
       );
       process.exit(2);
     }
-    writeFileSync(BASELINE, JSON.stringify(summary, null, 2) + "\n", "utf-8");
+    if (distStamp() !== startStamp) {
+      console.error("\nrefusing to --save: dist/ changed during the run.");
+      process.exit(3);
+    }
+    writeFileSync(BASELINE, `${JSON.stringify(summary, null, 2)}\n`, "utf-8");
     console.log(`\nbaseline written to ${BASELINE}`);
   }
 
-  console.log(`\n(${requestBudget} variant runs; GITHUB_TOKEN ${process.env.GITHUB_TOKEN ? "set" : "unset"}, sleeping ${SLEEP_MS}ms between)`);
+  console.log(
+    `\n(${selected.length} planned searches; ${githubRequestBudget} GitHub requests; token ${process.env.GITHUB_TOKEN ? "set" : "unset"})`,
+  );
 }
 
-main().catch((err) => {
-  console.error("eval failed:", err);
+main().catch((error) => {
+  console.error("eval failed:", error);
   process.exit(1);
 });

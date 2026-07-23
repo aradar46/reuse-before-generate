@@ -17,7 +17,7 @@ import { searchRegistryResults } from "./sources/registries.js";
 
 export type { RawCandidate } from "./candidate.js";
 
-const USER_AGENT = "reuse-before-generate-mcp/0.2";
+const USER_AGENT = "reuse-before-generate-mcp/0.3";
 const GITHUB_API = "https://api.github.com";
 
 function githubHeaders(): Record<string, string> {

@@ -1,23 +1,295 @@
 {
-  "generatedAt": "2026-07-22T16:51:14.982Z",
-  "cases": 11,
-  "recallAt5": 0.909,
-  "recallAt10": 1,
-  "recallAtAll": 1,
-  "mrr": 0.75,
-  "falsePositivesOnTrueNegatives": 0,
+  "generatedAt": "2026-07-23T12:47:34.053Z",
+  "reuse": {
+    "cases": 15,
+    "recallAt5": 0.733,
+    "recallAt10": 0.8
+  },
+  "competition": {
+    "cases": 2,
+    "recallAt5": 0.5,
+    "recallAt10": 0.5
+  },
+  "uniqueSingleSourceWins": {
+    "npm": 2,
+    "github": 4,
+    "hackernews": 1,
+    "web": 1
+  },
+  "webAvailability": {
+    "attempted": 18,
+    "failed": 9
+  },
+  "retrievalCandidatesOnTrueNegative": 4,
   "perCase": {
-    "python-formatter": 2,
-    "changelog-generator": 1,
-    "secret-scanner": 1,
-    "actions-debugger": 6,
-    "json-viewer": 1,
-    "postgres-mcp": 4,
-    "html-proofer": 1,
-    "no-real-competitor": null,
-    "vague-phrasing": 1,
-    "npm-dominant": 3,
-    "python-dominant": 1,
-    "low-star-niche": 1
+    "python-formatter": {
+      "expectedPool": "reuse",
+      "rank": 1,
+      "poolSize": 28,
+      "evidenceSources": [
+        "github",
+        "python"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [
+        {
+          "source": "web",
+          "reason": "challenge response",
+          "required": false
+        }
+      ],
+      "retrievalCandidates": 30,
+      "trueNegative": false
+    },
+    "changelog-generator": {
+      "expectedPool": "reuse",
+      "rank": 2,
+      "poolSize": 20,
+      "evidenceSources": [
+        "npm",
+        "web"
+      ],
+      "formulationHitRate": 0.6666666666666666,
+      "sourceFailures": [],
+      "retrievalCandidates": 40,
+      "trueNegative": false
+    },
+    "secret-scanner": {
+      "expectedPool": "reuse",
+      "rank": 3,
+      "poolSize": 27,
+      "evidenceSources": [
+        "npm"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [
+        {
+          "source": "web",
+          "reason": "challenge response",
+          "required": false
+        }
+      ],
+      "retrievalCandidates": 29,
+      "trueNegative": false
+    },
+    "actions-debugger": {
+      "expectedPool": "reuse",
+      "rank": null,
+      "poolSize": 25,
+      "evidenceSources": [],
+      "formulationHitRate": 0,
+      "sourceFailures": [],
+      "retrievalCandidates": 45,
+      "trueNegative": false
+    },
+    "json-viewer": {
+      "expectedPool": "reuse",
+      "rank": 1,
+      "poolSize": 23,
+      "evidenceSources": [
+        "github"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [
+        {
+          "source": "web",
+          "reason": "challenge response",
+          "required": false
+        }
+      ],
+      "retrievalCandidates": 25,
+      "trueNegative": false
+    },
+    "postgres-mcp": {
+      "expectedPool": "reuse",
+      "rank": 1,
+      "poolSize": 35,
+      "evidenceSources": [
+        "github",
+        "hackernews",
+        "web"
+      ],
+      "formulationHitRate": 0.6666666666666666,
+      "sourceFailures": [],
+      "retrievalCandidates": 56,
+      "trueNegative": false
+    },
+    "html-proofer": {
+      "expectedPool": "reuse",
+      "rank": 1,
+      "poolSize": 27,
+      "evidenceSources": [
+        "github",
+        "web"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [],
+      "retrievalCandidates": 46,
+      "trueNegative": false
+    },
+    "no-real-competitor": {
+      "expectedPool": "reuse",
+      "rank": null,
+      "poolSize": 4,
+      "evidenceSources": [],
+      "formulationHitRate": 0,
+      "sourceFailures": [
+        {
+          "source": "web",
+          "reason": "challenge response",
+          "required": false
+        }
+      ],
+      "retrievalCandidates": 4,
+      "trueNegative": true
+    },
+    "vague-phrasing": {
+      "expectedPool": "reuse",
+      "rank": 1,
+      "poolSize": 29,
+      "evidenceSources": [
+        "npm"
+      ],
+      "formulationHitRate": 0.6666666666666666,
+      "sourceFailures": [],
+      "retrievalCandidates": 50,
+      "trueNegative": false
+    },
+    "npm-dominant": {
+      "expectedPool": "reuse",
+      "rank": 3,
+      "poolSize": 27,
+      "evidenceSources": [
+        "github"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [
+        {
+          "source": "web",
+          "reason": "challenge response",
+          "required": false
+        }
+      ],
+      "retrievalCandidates": 27,
+      "trueNegative": false
+    },
+    "python-dominant": {
+      "expectedPool": "reuse",
+      "rank": 1,
+      "poolSize": 32,
+      "evidenceSources": [
+        "github",
+        "web"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [],
+      "retrievalCandidates": 55,
+      "trueNegative": false
+    },
+    "low-star-niche": {
+      "expectedPool": "reuse",
+      "rank": null,
+      "poolSize": 22,
+      "evidenceSources": [],
+      "formulationHitRate": 0,
+      "sourceFailures": [
+        {
+          "source": "web",
+          "reason": "challenge response",
+          "required": false
+        }
+      ],
+      "retrievalCandidates": 22,
+      "trueNegative": false
+    },
+    "rust-ripgrep": {
+      "expectedPool": "reuse",
+      "rank": 4,
+      "poolSize": 35,
+      "evidenceSources": [
+        "github"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [],
+      "retrievalCandidates": 56,
+      "trueNegative": false
+    },
+    "ruby-rubocop": {
+      "expectedPool": "reuse",
+      "rank": 10,
+      "poolSize": 29,
+      "evidenceSources": [
+        "github"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [
+        {
+          "source": "web",
+          "reason": "challenge response",
+          "required": false
+        }
+      ],
+      "retrievalCandidates": 29,
+      "trueNegative": false
+    },
+    "php-monolog": {
+      "expectedPool": "reuse",
+      "rank": 1,
+      "poolSize": 28,
+      "evidenceSources": [
+        "github",
+        "web"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [],
+      "retrievalCandidates": 46,
+      "trueNegative": false
+    },
+    "jvm-picocli": {
+      "expectedPool": "reuse",
+      "rank": null,
+      "poolSize": 23,
+      "evidenceSources": [],
+      "formulationHitRate": 0,
+      "sourceFailures": [
+        {
+          "source": "web",
+          "reason": "challenge response",
+          "required": false
+        }
+      ],
+      "retrievalCandidates": 24,
+      "trueNegative": false
+    },
+    "calendly-scheduling": {
+      "expectedPool": "competition",
+      "rank": 1,
+      "poolSize": 1,
+      "evidenceSources": [
+        "hackernews"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [
+        {
+          "source": "web",
+          "reason": "challenge response",
+          "required": false
+        }
+      ],
+      "retrievalCandidates": 24,
+      "trueNegative": false
+    },
+    "screen-studio-recorder": {
+      "expectedPool": "competition",
+      "rank": 14,
+      "poolSize": 20,
+      "evidenceSources": [
+        "web"
+      ],
+      "formulationHitRate": 0.3333333333333333,
+      "sourceFailures": [],
+      "retrievalCandidates": 50,
+      "trueNegative": false
+    }
   }
 }

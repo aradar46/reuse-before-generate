@@ -21,7 +21,15 @@ this was a genuinely good idea, and I built
 Then I found `action-tmate`. 3,566 stars. Does exactly that. Has for years.
 
 This server is the check I wish I'd run. Ask your agent to build something
-and it looks first:
+and it looks first. The response deliberately has two sections:
+
+- **Projects you could reuse** — maintained open-source repositories and
+  packages that may be worth adopting or extending.
+- **Products you would compete with** — commercial or product evidence that
+  may validate the market, change the positioning, or save a duplicate build.
+
+Those are retrieval pools, not verdicts. The calling agent compares the
+actual capabilities and explains whether anything is genuinely equivalent.
 
 > Before building — this already exists:
 >
@@ -44,6 +52,24 @@ worth building at all.
 
 For the record, this tool did not survive its own test either!
 But I had to build it to find out. Hopefully it will prevent me from doing it again.
+
+## What it searches
+
+One bounded plan searches GitHub, npm, GitLab, Show HN, Product Hunt,
+DuckDuckGo, and, when the ecosystem is explicit, crates.io, RubyGems,
+Packagist, Maven Central, or a Python-specific repository lane. These
+sources are keyless. `GITHUB_TOKEN` is optional and only raises GitHub's
+search rate limit.
+
+The agent may supply three optional formulations: a category name, the
+outcome the tool should achieve, and alternative terminology. The planner
+uses a fixed number of requests; formulations do not create an unbounded
+search loop.
+
+Every response includes **Search coverage**, naming both searched and
+unavailable sources. An empty result is reported cautiously: it means no
+strong candidate was retrieved from the available sources, not that the
+idea is unique or safe to build without further research.
 
 ## Install
 
@@ -111,29 +137,20 @@ only happens when you remember to ask.
 
 ## Does it actually work?
 
-It's measured, not vibes. There are 12 test cases with known right answers
+It's measured, not vibes. There are live cases with known right answers
 — "find `gitleaks` from a description of a secret scanner", that sort of
-thing — and the search is scored on what position the right answer comes
-back at.
-
-Current scores:
-
-| | |
-|---|---|
-| Found the right tool in the top 10 | **11 of 11** |
-| Found it in the top 5 | 10 of 11 |
-| Made something up when nothing existed | never |
-
-The last row matters most. A tool that reports matches for everything is
-useless, so one test case describes something no real tool does. It
-correctly returns nothing.
+thing — and separate commercial-product cases. Reuse and competition recall
+are scored independently. One deliberately absurd case records how many
+candidates retrieval returned; it is not mislabeled as a semantic
+false-positive test because the server does not make the final relevance
+judgment.
 
 Details, including where it still fails, are in
 **[docs/findings.md](docs/findings.md)**.
 
 ## Settings
 
-There's one setting worth knowing about: **`GITHUB_TOKEN`**. Without it
+The main optional setting is **`GITHUB_TOKEN`**. Without it
 GitHub allows 10 searches a minute, with it 30. Set it in the `env` block
 shown in [Install](#install).
 
@@ -148,15 +165,17 @@ the rest.
 
 Honest list, because you'll hit these:
 
-- **Bad search terms miss real tools.** If you describe a JSON viewer as a
-  "pretty-printer", it may find nothing — real ones call themselves
-  "viewers". The agent is told to think about how a maintainer would
-  describe their own tool, but it doesn't always get it right.
+- **Retrieval is lexical.** The three formulations reduce wording
+  sensitivity, but a product or project can still use terminology none of
+  them covers.
 - **Very small or oddly-named repos are hard to find.** GitHub's own search
   buries them. There's a dedicated search lane for this and it helps, but
   doesn't fully solve it.
 - **"Maintained" just means "touched in the last year."** It doesn't check
   whether issues get answered or whether the project is actually healthy.
+- **Web search is experimental.** Challenge pages and markup changes can
+  make it unavailable. Coverage reports that explicitly; other sources
+  still return partial results.
 
 All measured and written up in [docs/findings.md](docs/findings.md).
 
