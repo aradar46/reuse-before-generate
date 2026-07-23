@@ -18,8 +18,20 @@ const AUTHORITATIVE_ACTIVITY_SOURCES: ReadonlySet<Source> = new Set([
 export function canonicalizeUrl(raw: string): string {
   const trimmed = raw.trim();
   try {
-    const url = new URL(trimmed);
+    const scpRepository = trimmed.match(
+      /^git@((?:www\.)?(?:github\.com|gitlab\.com)):(.+)$/i,
+    );
+    const transportNormalized = scpRepository
+      ? `https://${scpRepository[1]}/${scpRepository[2]}`
+      : trimmed.replace(/^git\+(https?:\/\/)/i, "$1");
+    let url = new URL(transportNormalized);
     url.hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+    if (
+      (url.hostname === "github.com" || url.hostname === "gitlab.com")
+      && (url.protocol === "git:" || url.protocol === "ssh:")
+    ) {
+      url = new URL(`https://${url.hostname}${url.pathname}`);
+    }
     url.hash = "";
     for (const key of [...url.searchParams.keys()]) {
       if (TRACKING_PARAMETER.test(key)) url.searchParams.delete(key);
@@ -62,7 +74,7 @@ const NON_REPOSITORY_ROOTS = new Set([
 function recognizedRepositoryUrl(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
   try {
-    const url = new URL(raw.trim());
+    const url = new URL(canonicalizeUrl(raw));
     const host = url.hostname.toLowerCase().replace(/^www\./, "");
     if (host !== "github.com" && host !== "gitlab.com") return undefined;
     const segments = url.pathname.split("/").filter(Boolean);

@@ -15,7 +15,7 @@ import { ARTIFACT_TYPES } from "./query-plan.js";
 
 const server = new McpServer({
   name: "reuse-before-generate",
-  version: "0.9.0",
+  version: "0.10.0",
 });
 
 server.registerTool(

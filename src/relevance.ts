@@ -15,10 +15,10 @@ const STOP_WORDS = new Set([
 const COMPONENT_PATTERN =
   /\b(?:adapter|client|component|connector|extension|integration|middleware|plugin|sdk|template|theme|widget|wrapper)\b/i;
 const INFORMATIONAL_PATTERN =
-  /\b(?:alternatives?|best(?:\s+\d+)?|comparison|definition|dictionary|encyclopedia|guide|how to|quora|reddit|reviews?|stackexchange|top(?:\s+\d+)?|what is|wiktionary|wikipedia|youtube)\b/i;
+  /\b(?:alternatives?|best(?:\s+\d+)?|comparison|definition|dictionary|encyclopedia|guide|how to|introduction|overview|quora|reddit|reviews?|solving|stackexchange|top(?:\s+\d+)?|tried(?:\s+\d+)?|tutorial|what is|which .+ choose|wiktionary|wikipedia|youtube)\b/i;
 const AWESOME_PATTERN = /\bawesome[- ]|\/awesome[-/]/i;
 const INFORMATIONAL_PATH_PATTERN =
-  /\/(?:article|articles|blog|blogs|guide|guides|post|posts|questions?|reviews?)(?:\/|$)/i;
+  /\/(?:article|articles|blog|blogs|categor(?:y|ies)|docs?|documentation|forums?|guides?|help|learn|marketplace|posts?|pulse|questions?|reviews?|support)(?:[/?#]|$)/i;
 const APPLICATION_DISTRIBUTION_HOSTS = new Set([
   "apps.apple.com",
   "apps.microsoft.com",
@@ -28,10 +28,16 @@ const APPLICATION_DISTRIBUTION_HOSTS = new Set([
   "snapcraft.io",
 ]);
 const INFORMATIONAL_HOSTS = new Set([
+  "dev.to",
   "dictionary.com",
   "en.wiktionary.org",
+  "facebook.com",
+  "instagram.com",
+  "medium.com",
   "merriam-webster.com",
+  "twitter.com",
   "wikipedia.org",
+  "x.com",
 ]);
 
 interface EvidenceConcept {
@@ -49,7 +55,7 @@ const EVIDENCE_CONCEPTS: EvidenceConcept[] = [
     evidence: /\b(?:no account|account[- ]free|without (?:an )?account|no (?:sign[ -]?up|login|registration)|does not require (?:an )?account)\b/i,
   },
   {
-    constraint: /\b(?:local[- ]only|local[- ]first|on[- ]device|no cloud)\b/i,
+    constraint: /\b(?:local[- ]only|local[- ]first|on[- ]device|no cloud|without (?:an? )?(?:\w+\s){0,2}cloud)\b/i,
     evidence: /\b(?:local[- ]only|local[- ]first|on[- ]device|no cloud|stored? (?:only )?(?:locally|on (?:your|the) (?:device|phone))|stays? on (?:your|the) (?:device|phone)|remains? on (?:your|the) (?:device|phone))\b/i,
   },
   {
@@ -217,6 +223,7 @@ function tier(
   candidate: RankedCandidate,
   score: number,
   penalties: readonly string[],
+  allConstraintsUnknown: boolean,
 ): NonNullable<RankedCandidate["discoveryTier"]> {
   if (candidate.pool === "competition") return "existing_product";
   if (
@@ -231,6 +238,7 @@ function tier(
   if ((candidate.stars ?? Number.POSITIVE_INFINITY) <= 3) {
     return "promising_niche";
   }
+  if (allConstraintsUnknown) return "adjacent_building_block";
   return "strong_reuse";
 }
 
@@ -253,6 +261,9 @@ export function rankCandidates<T extends RankedCandidate>(
       const sources = evidenceSources(candidate);
       const substance = repositorySubstance(candidate);
       const constraintEvidence = constraintsFor(candidate, plan.constraints);
+      const allConstraintsUnknown =
+        constraintEvidence.length > 0
+        && constraintEvidence.every((item) => item.status === "unknown");
       const priorities = plan.priorities ?? [];
       const priorityEvidence = constraintsFor(candidate, priorities);
       const distributionEvidence =
@@ -334,7 +345,14 @@ export function rankCandidates<T extends RankedCandidate>(
         penalty += 0.22;
         penalties.push("package-only evidence for a CLI");
       }
-      if (plan.artifactType !== "library" && COMPONENT_PATTERN.test(text)) {
+      const componentIdentity = [
+        candidate.name,
+        candidate.url,
+      ].join(" ");
+      if (
+        plan.artifactType !== "library"
+        && COMPONENT_PATTERN.test(componentIdentity)
+      ) {
         penalty += 0.22;
         penalties.push("component or integration shape");
       }
@@ -344,18 +362,26 @@ export function rankCandidates<T extends RankedCandidate>(
         ...candidate.evidence.map((item) => item.title),
       ].join(" ");
       if (
-        !repositoryEvidence
+        (!repositoryEvidence || candidate.pool === "competition")
         && (
           INFORMATIONAL_PATTERN.test(informationalIdentity)
           || INFORMATIONAL_PATH_PATTERN.test(candidate.url)
           || (() => {
             try {
-              const host = new URL(candidate.url).hostname
+              const candidateUrl = new URL(candidate.url);
+              const host = candidateUrl.hostname
                 .toLocaleLowerCase()
                 .replace(/^www\./, "");
+              const pathParts = candidateUrl.pathname.split("/").filter(Boolean);
               return INFORMATIONAL_HOSTS.has(host)
                 || host.endsWith(".wikipedia.org")
-                || host.endsWith(".wiktionary.org");
+                || host.endsWith(".wiktionary.org")
+                || host.startsWith("wiki.")
+                || host.startsWith("blog.")
+                || host.endsWith(".blog")
+                || host === "news.ycombinator.com"
+                || /^(?:docs?|forums?|help|support)\./.test(host)
+                || (host === "github.com" && pathParts.length < 2);
             } catch {
               return false;
             }
@@ -424,7 +450,12 @@ export function rankCandidates<T extends RankedCandidate>(
         priorityEvidence,
         rankingSignals: signals,
         rankingPenalties: penalties,
-        discoveryTier: tier(candidate, score, penalties),
+        discoveryTier: tier(
+          candidate,
+          score,
+          penalties,
+          allConstraintsUnknown,
+        ),
       };
     })
     .sort((left, right) =>
@@ -452,15 +483,14 @@ function diversifyReuse<T extends RankedCandidate>(
   const selectedUrls = new Set(selected.map((candidate) => candidate.canonicalUrl));
   const eligible = candidates.slice(0, 25).filter((candidate) =>
     (candidate.stars ?? 0) >= 1_000
-    && (
-      (candidate.semanticFit ?? 0) >= 0.35
-      || (candidate.localScore ?? 0) >= 0.45
-    )
+    && (candidate.semanticFit ?? 0) >= 0.5
     && (candidate.rankingPenalties?.length ?? 0) === 0);
-  const authority = [...eligible].sort((left, right) =>
-    (right.authorityScore ?? 0) - (left.authorityScore ?? 0)
-    || (right.localScore ?? 0) - (left.localScore ?? 0))[0];
-  if (authority && !selectedUrls.has(authority.canonicalUrl)) {
+  const authority = [...eligible]
+    .sort((left, right) =>
+      (right.authorityScore ?? 0) - (left.authorityScore ?? 0)
+      || (right.localScore ?? 0) - (left.localScore ?? 0))
+    .find((candidate) => !selectedUrls.has(candidate.canonicalUrl));
+  if (authority) {
     selected.push({
       ...authority,
       rankingSignals: [...(authority.rankingSignals ?? []), "authority slot"],

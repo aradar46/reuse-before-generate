@@ -194,11 +194,51 @@ test("Tavily discovery adds platform distribution lanes for applications", async
       body.include_domains,
     ]),
     [
-      ["private period tracker Android iOS offline open source app", 5, true, undefined],
-      ["menstrual cycle tracker Android iOS offline official app", 5, true, undefined],
+      [
+        "private period tracker Android iOS offline open source app",
+        8,
+        true,
+        ["github.com", "gitlab.com"],
+      ],
+      [
+        "period tracker software",
+        8,
+        true,
+        undefined,
+      ],
       ["private period tracker Android F-Droid app", 5, true, ["f-droid.org"]],
       ["menstrual cycle tracker iOS App Store app", 5, true, ["apps.apple.com"]],
     ],
+  );
+});
+
+test("Tavily keeps reusable discovery on repository hosts and products broad", async () => {
+  process.env.TAVILY_API_KEY = "tvly-test-secret";
+  const bodies: Array<Record<string, unknown>> = [];
+  setFetcher(async (url, init) => {
+    assert.equal(String(url), "https://api.tavily.com/search");
+    bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    return Response.json({ results: [] });
+  });
+
+  await searchTavilyDiscoveryResult({
+    formulations: {
+      category: "personal relationship manager",
+      outcome: "remember conversations and follow up",
+      synonyms: "personal CRM",
+    },
+    constraints: [],
+    priorities: [],
+    artifactType: "application",
+  });
+
+  assert.deepEqual(bodies[0]?.include_domains, ["github.com", "gitlab.com"]);
+  assert.equal("include_domains" in (bodies[1] ?? {}), false);
+  assert.equal(bodies[0]?.search_depth, "basic");
+  assert.equal(bodies[1]?.search_depth, "advanced");
+  assert.equal(
+    bodies[1]?.query,
+    "personal relationship manager software",
   );
 });
 

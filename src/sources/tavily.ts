@@ -7,7 +7,7 @@ import { err, ok, unavailable, type Result } from "../result.js";
 
 const SEARCH_URL = "https://api.tavily.com/search";
 const TIMEOUT_MS = 8_000;
-const USER_AGENT = "reuse-before-generate-mcp/0.9";
+const USER_AGENT = "reuse-before-generate-mcp/0.10";
 
 const TavilySearchResponse = z.object({
   results: z.array(z.object({
@@ -134,6 +134,7 @@ export async function searchTavilyResult(
   options: {
     includeRawContent?: boolean;
     includeDomains?: string[];
+    searchDepth?: "basic" | "advanced";
   } = {},
 ): Promise<Result<RawCandidate[]>> {
   const token = process.env.TAVILY_API_KEY?.trim();
@@ -147,7 +148,7 @@ export async function searchTavilyResult(
       { Authorization: `Bearer ${token}` },
       {
         query,
-        search_depth: "basic",
+        search_depth: options.searchDepth ?? "basic",
         max_results: limit,
         include_answer: false,
         include_raw_content: options.includeRawContent === true,
@@ -283,10 +284,23 @@ function compactConstraints(plan: QueryPlan): string {
   return plan.constraints.slice(0, 3).join(" ");
 }
 
+function marketCategory(category: string): string {
+  const broadened = category
+    .replace(
+      /\b(?:fully\s+offline|local[- ]first|offline|open[- ]source|privacy[- ]focused|private|self[- ]hosted)\b/gi,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+  return broadened || category;
+}
+
 interface DiscoveryQuery {
   query: string;
   includeRawContent: boolean;
   includeDomains?: string[];
+  maxResults?: number;
+  searchDepth?: "basic" | "advanced";
 }
 
 function applicationDistributionQueries(plan: QueryPlan): DiscoveryQuery[] {
@@ -321,30 +335,33 @@ function discoveryQueries(plan: QueryPlan): {
   product: string;
 } {
   const category = plan.formulations.category;
-  const productName = plan.formulations.synonyms?.trim() || category;
   const constraints = compactConstraints(plan);
   const qualified = (value: string, suffix: string): string =>
     [value, constraints, suffix].filter(Boolean).join(" ");
+  const productQuery = (suffix: string): string =>
+    [marketCategory(category), suffix]
+      .filter(Boolean)
+      .join(" ");
   switch (plan.artifactType) {
     case "application":
       return {
         reuse: qualified(category, "open source app"),
-        product: qualified(productName, "official app"),
+        product: productQuery("software"),
       };
     case "service":
       return {
         reuse: qualified(category, "open source self-hosted"),
-        product: qualified(productName, "official hosted software pricing"),
+        product: productQuery("hosted software"),
       };
     case "cli":
       return {
         reuse: qualified(category, "open source command line"),
-        product: qualified(productName, "official CLI software"),
+        product: productQuery("CLI software"),
       };
     case "library":
       return {
         reuse: qualified(category, "open source library"),
-        product: qualified(productName, "official developer library"),
+        product: productQuery("developer library"),
       };
   }
 }
@@ -363,8 +380,18 @@ export async function searchTavilyDiscoveryResult(
 
   const { reuse: reuseQuery, product: productQuery } = discoveryQueries(plan);
   const queries: DiscoveryQuery[] = [
-    { query: reuseQuery, includeRawContent: true },
-    { query: productQuery, includeRawContent: true },
+    {
+      query: reuseQuery,
+      includeRawContent: true,
+      includeDomains: ["github.com", "gitlab.com"],
+      maxResults: 8,
+    },
+    {
+      query: productQuery,
+      includeRawContent: true,
+      maxResults: 8,
+      searchDepth: "advanced",
+    },
     ...applicationDistributionQueries(plan),
   ];
   const uniqueQueries = [...new Map(
@@ -373,12 +400,13 @@ export async function searchTavilyDiscoveryResult(
   const results = await Promise.all(uniqueQueries.map((query) =>
     searchTavilyResult(
       query.query,
-      5,
+      query.maxResults ?? 5,
       {
         includeRawContent: query.includeRawContent,
         ...(query.includeDomains
           ? { includeDomains: query.includeDomains }
           : {}),
+        ...(query.searchDepth ? { searchDepth: query.searchDepth } : {}),
       },
     )));
   const successes = results.filter((result) => result.ok);

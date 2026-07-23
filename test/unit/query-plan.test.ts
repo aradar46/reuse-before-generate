@@ -128,3 +128,17 @@ test("buildQueryPlan preserves ordered priorities and deduplicates them", () => 
 
   assert.deepEqual(plan.priorities, ["Android", "iOS"]);
 });
+
+test("buildQueryPlan preserves caller keyword hints for independent retrieval", () => {
+  const plan = buildQueryPlan(
+    "Debug a failing workflow interactively",
+    [" GitHub Actions ", "tmate", "ACT", "tmate", ""],
+    {
+      category: "CI workflow debugger",
+      outcome: "inspect a running CI job",
+      synonyms: "interactive runner shell",
+    },
+  );
+
+  assert.deepEqual(plan.keywordHints, ["GitHub Actions", "tmate", "ACT"]);
+});

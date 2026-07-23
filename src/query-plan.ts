@@ -23,6 +23,7 @@ export interface QueryPlan {
   formulations: QueryFormulations;
   constraints: string[];
   priorities: string[];
+  keywordHints?: string[];
   artifactType: ArtifactType;
   ecosystem?: Ecosystem;
 }
@@ -84,6 +85,7 @@ export function buildQueryPlan(
   const synonyms = queries === undefined ? undefined : normalize(queries.synonyms);
   const constraints = normalizeList(queries?.constraints);
   const priorities = normalizeList(queries?.priorities);
+  const keywordHints = normalizeList(keywords);
   const formulations: QueryFormulations = synonyms
     ? { category, outcome, synonyms }
     : { category, outcome };
@@ -104,7 +106,12 @@ export function buildQueryPlan(
     ...priorities,
   );
 
-  return ecosystem
-    ? { formulations, constraints, priorities, artifactType, ecosystem }
-    : { formulations, constraints, priorities, artifactType };
+  const plan = {
+    formulations,
+    constraints,
+    priorities,
+    ...(keywordHints.length > 0 ? { keywordHints } : {}),
+    artifactType,
+  };
+  return ecosystem ? { ...plan, ecosystem } : plan;
 }

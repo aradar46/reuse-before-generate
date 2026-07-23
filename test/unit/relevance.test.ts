@@ -195,6 +195,33 @@ test("constraint evidence recognizes equivalent product language and platform UR
   ]);
 });
 
+test("constraint evidence recognizes natural no-cloud wording", async () => {
+  const plan = buildQueryPlan("A private budget", [], {
+    category: "personal budget",
+    outcome: "plan spending privately",
+    synonyms: "envelope budget",
+    constraints: ["works without a bank cloud"],
+    artifactType: "application",
+  });
+  const raw = candidate(
+    "github",
+    "local-budget",
+    "A personal budget",
+    ["personal budget"],
+  );
+  raw.evidence = [{
+    ...raw.evidence[0]!,
+    snippet: "Local-first budgeting with no cloud account required.",
+  }];
+
+  const [prepared] = await prepareCandidates([raw], plan);
+  assert.deepEqual(prepared?.constraintEvidence, [{
+    constraint: "works without a bank cloud",
+    status: "claimed",
+    sources: ["github"],
+  }]);
+});
+
 test("ordered priorities favor the primary platform while retaining secondary evidence", async () => {
   const plan = buildQueryPlan("A mobile tracker", [], {
     category: "personal tracker",
@@ -309,6 +336,40 @@ test("informational pages and component-shaped results expose transparent penalt
     item.includes("component or integration")));
 });
 
+test("component words in descriptive evidence do not demote a full application", async () => {
+  const plan = buildQueryPlan("Synchronize files between devices", [], {
+    category: "peer to peer file synchronization",
+    outcome: "keep device folders synchronized",
+    synonyms: "private folder sync",
+    artifactType: "application",
+  });
+  const [prepared] = await prepareCandidates([
+    candidate(
+      "github",
+      "syncthing",
+      "Continuous file synchronization between devices",
+      ["peer to peer file synchronization"],
+      80_000,
+    ),
+  ], plan);
+  prepared?.evidence.push({
+    ...prepared.evidence[0],
+    source: "web",
+    sourceId: "homepage",
+    sourceUrl: "https://syncthing.net",
+    destinationUrl: "https://syncthing.net",
+    title: "Syncthing desktop client download",
+    snippet: "Install the desktop client and synchronize your folders",
+  });
+
+  const [reranked] = await prepareCandidates([prepared], plan);
+  assert.equal(
+    reranked?.rankingPenalties?.some((item) =>
+      item.includes("component or integration")),
+    false,
+  );
+});
+
 test("word normalization recognizes plural and inflected README language", async () => {
   const plan = buildQueryPlan("Scan Git repositories", [], {
     category: "repository secret detection",
@@ -375,6 +436,50 @@ test("top five reserves authority and niche without promoting irrelevant popular
     ?.rankingSignals?.includes("authority slot"));
 });
 
+test("authority diversification skips an already selected authority candidate", async () => {
+  const plan = buildQueryPlan("Analyze disk usage", [], {
+    category: "terminal disk usage analyzer",
+    outcome: "find large files and directories",
+    synonyms: "interactive disk space CLI",
+    artifactType: "cli",
+  });
+  const exactDescription =
+    "Terminal disk usage analyzer to find large files and directories interactively";
+  const raw = [
+    candidate(
+      "github",
+      "established-top",
+      exactDescription,
+      ["terminal disk usage analyzer"],
+      100_000,
+      1,
+    ),
+    ...Array.from({ length: 4 }, (_, index) => candidate(
+      "github",
+      `niche-disk-${index + 1}`,
+      exactDescription,
+      ["terminal disk usage analyzer"],
+      index,
+      1,
+    )),
+    candidate(
+      "github",
+      "established-second",
+      "Terminal disk usage analyzer",
+      ["terminal disk usage analyzer"],
+      50_000,
+      20,
+    ),
+  ];
+
+  const prepared = await prepareCandidates(raw, plan);
+  const second = prepared.find((item) => item.name === "established-second");
+
+  assert.ok(prepared.slice(0, 5).some((item) =>
+    item.name === "established-second"));
+  assert.ok(second?.rankingSignals?.includes("authority slot"));
+});
+
 test("reviews and best-of pages receive an informational penalty", async () => {
   const plan = buildQueryPlan("Personal CRM", [], {
     category: "personal CRM",
@@ -404,6 +509,109 @@ test("reviews and best-of pages receive an informational penalty", async () => {
   assert.ok(review?.rankingPenalties?.some((item) =>
     item.includes("informational page")));
   assert.ok((review?.localScore ?? 0) < 0);
+});
+
+test("marketplace, forum, documentation, and category pages are informational", async () => {
+  const plan = buildQueryPlan("Debug a CI workflow", [], {
+    category: "CI workflow debugger",
+    outcome: "inspect a running build",
+    synonyms: "interactive runner shell",
+    artifactType: "application",
+  });
+  const urls = [
+    "https://github.com/marketplace?type=actions&query=debug",
+    "https://github.com/Monica-CRM",
+    "https://forum.example.com/t/debugging/42",
+    "https://docs.example.com/ci/debugging",
+    "https://catalog.example.com/category/developer-tools",
+    "https://wiki.postgresql.org/wiki/PostgreSQL_Clients",
+    "https://news.ycombinator.com/item?id=123",
+  ];
+  const prepared = await prepareCandidates(urls.map((url, index) => ({
+    source: "web",
+    id: url,
+    name: `CI debugging page ${index + 1}`,
+    url,
+    description: "CI workflow debugging information",
+    kind: "unknown",
+    evidence: [{
+      source: "web",
+      sourceId: url,
+      sourceUrl: url,
+      destinationUrl: url,
+      title: `CI debugging page ${index + 1}`,
+      snippet: "CI workflow debugging information",
+      query: "CI workflow debugger software",
+      rank: index + 1,
+    }],
+  })), plan);
+
+  assert.equal(prepared.length, urls.length);
+  assert.equal(prepared.every((item) =>
+    item.rankingPenalties?.some((penalty) =>
+      penalty.includes("informational page"))), true);
+});
+
+test("an informational competition URL stays informational after repository fusion", async () => {
+  const plan = buildQueryPlan("TypeScript validation", [], {
+    category: "TypeScript schema validation",
+    outcome: "validate runtime data",
+    synonyms: "runtime type parser",
+    artifactType: "library",
+  });
+  const raw = candidate(
+    "github",
+    "schema-library",
+    "TypeScript schema validation library",
+    ["TypeScript schema validation"],
+    5_000,
+  );
+  raw.homepageUrl = "https://news.ycombinator.com/item?id=123";
+  raw.evidence.push({
+    source: "web",
+    sourceId: raw.homepageUrl,
+    sourceUrl: raw.homepageUrl,
+    destinationUrl: raw.homepageUrl,
+    title: "Hosted schema application",
+    snippet: "Hosted application product",
+    query: "TypeScript schema validation software",
+    rank: 1,
+  });
+  const prepared = await prepareCandidates([raw], plan);
+  const competition = prepared.find((item) => item.pool === "competition");
+
+  assert.ok(competition?.rankingPenalties?.some((penalty) =>
+    penalty.includes("informational page")));
+});
+
+test("article-style titles are informational even on an unstructured URL", async () => {
+  const plan = buildQueryPlan("TypeScript validation", [], {
+    category: "TypeScript schema validation",
+    outcome: "validate runtime data",
+    synonyms: "runtime type parser",
+    artifactType: "library",
+  });
+  const [prepared] = await prepareCandidates([{
+    source: "web",
+    id: "https://writer.example/runtime-validation",
+    name: "Solving TypeScript Runtime Validation Without Changing Your Code",
+    url: "https://writer.example/runtime-validation",
+    description: "An introduction to runtime validation libraries",
+    kind: "unknown",
+    evidence: [{
+      source: "web",
+      sourceId: "article",
+      sourceUrl: "https://writer.example/runtime-validation",
+      destinationUrl: "https://writer.example/runtime-validation",
+      title: "Solving TypeScript Runtime Validation Without Changing Your Code",
+      snippet: "An introduction to runtime validation libraries",
+      query: "TypeScript schema validation developer library",
+      rank: 1,
+    }],
+  }], plan);
+
+  assert.ok(prepared?.rankingPenalties?.some((penalty) =>
+    penalty.includes("informational page")));
 });
 
 test("dictionary and encyclopedia pages receive an informational penalty", async () => {
@@ -475,4 +683,30 @@ test("application ranking demotes a minimal repository shell and exposes evidenc
     { constraint: "offline", status: "claimed", sources: ["github"] },
     { constraint: "Android", status: "claimed", sources: ["github"] },
   ]);
+});
+
+test("reuse with wholly unknown must-have constraints is not labelled strong reuse", async () => {
+  const plan = buildQueryPlan("Record personal information", ["tracker"], {
+    category: "personal tracker",
+    outcome: "record personal information",
+    synonyms: "private journal",
+    constraints: ["works offline", "no account"],
+    artifactType: "application",
+  });
+  const [result] = await prepareCandidates([
+    candidate(
+      "github",
+      "polished-tracker",
+      "A polished personal tracker",
+      ["personal tracker"],
+      2_000,
+    ),
+  ], plan);
+
+  assert.ok(result);
+  assert.deepEqual(
+    result.constraintEvidence?.map((item) => item.status),
+    ["unknown", "unknown"],
+  );
+  assert.notEqual(result.discoveryTier, "strong_reuse");
 });

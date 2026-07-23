@@ -9,12 +9,37 @@ function candidateUrl(candidate: RawCandidate): string {
     ?? candidate.url;
 }
 
+const MARKET_EVIDENCE =
+  /\b(?:commercial|hosted|managed|paid plan|pricing|subscription)\b/i;
+const DISTRIBUTION_HOSTS = new Set([
+  "apps.apple.com",
+  "apps.microsoft.com",
+  "f-droid.org",
+  "flathub.org",
+  "play.google.com",
+  "snapcraft.io",
+]);
+
 function hasDirectMarketEvidence(candidate: RawCandidate): boolean {
   if (!candidate.homepageUrl) return false;
   const homepage = canonicalizeUrl(candidate.homepageUrl);
-  return candidate.evidence.some((item) =>
-    (item.source === "web" || item.source === "hackernews")
-    && canonicalizeUrl(item.destinationUrl) === homepage);
+  return candidate.evidence.some((item) => {
+    if (
+      (item.source !== "web" && item.source !== "hackernews")
+      || canonicalizeUrl(item.destinationUrl) !== homepage
+    ) {
+      return false;
+    }
+    try {
+      const host = new URL(item.destinationUrl).hostname
+        .toLocaleLowerCase()
+        .replace(/^www\./, "");
+      if (DISTRIBUTION_HOSTS.has(host)) return true;
+    } catch {
+      // The textual market check below still works for malformed URLs.
+    }
+    return MARKET_EVIDENCE.test(`${item.title} ${item.snippet}`);
+  });
 }
 
 function rrfScore(evidence: readonly Evidence[]): number {

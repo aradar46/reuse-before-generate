@@ -100,6 +100,35 @@ test("generic discovery uses explicit formulations, stable source order, and bou
   assert.equal(githubQueries.some((query) => query.includes("stars:0..3")), true);
 });
 
+test("GitHub plan spends one bounded lane on caller keyword alternatives", async () => {
+  const urls: string[] = [];
+  setFetcher(async (url) => {
+    urls.push(url);
+    return emptyDiscoveryResponse(url);
+  });
+
+  await searchAllResults(
+    "Pause a failing workflow and reproduce it locally",
+    ["GitHub Actions", "tmate", "act"],
+    {
+      category: "CI workflow debugger",
+      outcome: "inspect and rerun a failing hosted job",
+      synonyms: "interactive runner shell",
+      artifactType: "application",
+    },
+  );
+
+  const githubQueries = urls
+    .filter((url) => new URL(url).hostname === "api.github.com")
+    .map(decodedQuery);
+  assert.equal(githubQueries.length, 4);
+  assert.equal(
+    githubQueries.some((query) =>
+      query.includes('"GitHub Actions" OR tmate OR act')),
+    true,
+  );
+});
+
 test("library discovery keeps the npm lane", async () => {
   const urls: string[] = [];
   setFetcher(async (url) => {

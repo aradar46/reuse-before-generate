@@ -26,7 +26,7 @@ import { searchTavilyDiscoveryResult } from "./sources/tavily.js";
 
 export type { RawCandidate } from "./candidate.js";
 
-const USER_AGENT = "reuse-before-generate-mcp/0.9";
+const USER_AGENT = "reuse-before-generate-mcp/0.10";
 const GITHUB_API = "https://api.github.com";
 const githubScheduler = new GitHubRequestScheduler();
 
@@ -316,13 +316,14 @@ export async function searchGitHubPlanResult(
   limit = 15,
 ): Promise<Result<RawCandidate[]>> {
   const { category, outcome, synonyms } = plan.formulations;
-  const constraintQuery = plan.constraints.length > 0
+  const lexicalQuery = githubKeywordAlternatives(plan.keywordHints);
+  const fallbackQuery = plan.constraints.length > 0
     ? `${category} ${plan.constraints.slice(0, 2).join(" ")}`
     : `${outcome} in:name,description,readme`;
   const queries = uniqueQueries(
     `${category} in:name,description,readme`,
     synonyms ? `${synonyms} in:name,description,readme` : undefined,
-    constraintQuery,
+    lexicalQuery ?? fallbackQuery,
     `${category} stars:0..3`,
   ).slice(0, 4);
 
@@ -491,6 +492,21 @@ function uniqueQueries(...queries: Array<string | undefined>): string[] {
     unique.push(query);
   }
   return unique;
+}
+
+function githubKeywordAlternatives(
+  keywords: readonly string[] | undefined,
+): string | undefined {
+  const clauses = (keywords ?? [])
+    .slice(0, 6)
+    .map((keyword) => keyword.trim().slice(0, 48))
+    .filter((keyword) => keyword.length >= MIN_QUERY_CHARS)
+    .map((keyword) => /\s/.test(keyword)
+      ? `"${keyword.replaceAll('"', "")}"`
+      : keyword);
+  return clauses.length > 0
+    ? `${clauses.join(" OR ")} in:name,description,readme`
+    : undefined;
 }
 
 /**

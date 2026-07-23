@@ -193,3 +193,55 @@ test("an open-source project with direct market evidence appears in both pools",
     "reuse",
   ]);
 });
+
+test("an open-source documentation homepage is not invented as competition", () => {
+  const result = fuseCandidates([
+    candidate({
+      kind: "open_source",
+      homepageUrl: "https://widget.example",
+    }),
+    candidate({
+      source: "web",
+      id: "https://widget.example",
+      url: "https://widget.example",
+      description: "Widget library documentation",
+      kind: "unknown",
+      evidence: [{
+        source: "web",
+        sourceId: "https://widget.example",
+        sourceUrl: "https://widget.example",
+        destinationUrl: "https://widget.example",
+        title: "Widget library documentation",
+        snippet: "API reference and examples",
+        query: "widget developer library",
+        rank: 1,
+      }],
+    }),
+  ]);
+
+  assert.deepEqual(result.map((item) => item.pool), ["reuse"]);
+});
+
+test("mentioning an application service does not alone create market evidence", () => {
+  const result = fuseCandidates([
+    candidate({
+      kind: "open_source",
+      homepageUrl: "https://widget.example",
+      evidence: [
+        ...candidate().evidence,
+        {
+          source: "web",
+          sourceId: "https://widget.example",
+          sourceUrl: "https://widget.example",
+          destinationUrl: "https://widget.example",
+          title: "Widget documentation",
+          snippet: "Run the application as a background service",
+          query: "widget developer library",
+          rank: 1,
+        },
+      ],
+    }),
+  ]);
+
+  assert.deepEqual(result.map((item) => item.pool), ["reuse"]);
+});

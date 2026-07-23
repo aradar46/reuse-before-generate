@@ -42,6 +42,17 @@ test("canonicalizeUrl removes a terminal .git from GitLab repository URLs", () =
   );
 });
 
+test("canonicalizeUrl normalizes package-manager GitHub transports", () => {
+  assert.equal(
+    canonicalizeUrl("git+https://github.com/acme/widget.git"),
+    "https://github.com/acme/widget",
+  );
+  assert.equal(
+    canonicalizeUrl("git@github.com:acme/widget.git"),
+    "https://github.com/acme/widget",
+  );
+});
+
 test("canonicalizeUrl safely returns a trimmed invalid URL", () => {
   assert.equal(canonicalizeUrl("  not a url  "), "not a url");
 });
@@ -80,6 +91,31 @@ test("mergeCandidates joins duplicate candidates and deduplicates evidence", () 
 
   assert.equal(merged.length, 1);
   assert.equal(merged[0].evidence.length, 2);
+});
+
+test("mergeCandidates joins npm git+ repository URLs to GitHub repositories", () => {
+  const merged = mergeCandidates([
+    candidate(),
+    candidate({
+      source: "npm",
+      id: "widget",
+      url: "git+https://github.com/acme/widget.git",
+      repositoryUrl: "git+https://github.com/acme/widget.git",
+      evidence: [{
+        source: "npm",
+        sourceId: "widget",
+        sourceUrl: "https://npmjs.com/package/widget",
+        destinationUrl: "git+https://github.com/acme/widget.git",
+        title: "widget",
+        snippet: "package evidence",
+        query: "widget package",
+        rank: 1,
+      }],
+    }),
+  ]);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0]?.repositoryUrl, "https://github.com/acme/widget");
 });
 
 test("mergeCandidates uses candidate.url when no repository URL is present", () => {
