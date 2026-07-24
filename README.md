@@ -28,7 +28,7 @@ flowchart TD
     AIJudge --> Answer["👤 You get a short, useful answer"]
 ```
 
- Sometimes your version really is different and you should keep going. Sometimes it saves you a weekend. Either way, you find out in after **ten seconds instead of  10000  lines of code.**
+ Sometimes your version really is different and you should keep going. Sometimes it saves you a weekend. Either way, you find out after **ten seconds instead of 10,000 lines of code.**
 
 ## Why bother?
 
