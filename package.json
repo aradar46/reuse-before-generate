@@ -15,7 +15,7 @@
     "check": "npm run build && node dist/cli.js",
     "dev": "tsc -p tsconfig.json --watch",
     "eval": "npm run build && node test/eval/run.mjs",
-    "test": "npm run build && REUSE_BEFORE_GENERATE_STATE_DIR=.test-state node --test test/unit/*.test.ts test/eval/*.test.mjs",
+    "test": "npm run build && node --test test/unit/*.test.ts test/eval/*.test.mjs",
     "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
