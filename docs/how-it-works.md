@@ -10,7 +10,6 @@ The technical detail behind the one-paragraph summary in the README.
    agent. Older clients fall back to conservative artifact inference.
    Ecosystem detection uses only explicit Python, Rust, Ruby, PHP, or JVM
    signals.
-
 2. **Search** (`src/search.ts`) — executes a bounded plan. GitHub requests
    share one rate-aware scheduler and are serialized across tool calls.
    GitHub gets at most four diverse queries (category, synonym, constraint or
@@ -28,7 +27,6 @@ The technical detail behind the one-paragraph summary in the README.
    `language:python` GitHub query. Rust, Ruby, PHP, or JVM adds one matching
    registry query. Duplicate or empty formulations can reduce these counts;
    nothing expands them.
-
 3. **Canonicalize and fuse** (`src/canonicalize.ts`, `src/fusion.ts`) —
    removes tracking parameters, fragments, trailing slashes, `.git`, and
    `www.` differences before merging observations. Evidence is deduplicated
@@ -41,7 +39,6 @@ The technical detail behind the one-paragraph summary in the README.
    context outrank mirrors, build metadata, and site-template links. A project with direct
    market evidence can appear in both pools: reusable code and a product the
    proposal would compete with.
-
 4. **Separate and verify** (`src/verify.ts`) — repository and package
    evidence goes to **Projects you could reuse** and must be unarchived with
    activity in the last year. Existing product evidence—including
@@ -49,7 +46,6 @@ The technical detail behind the one-paragraph summary in the README.
    **Products you would compete with** and is not subjected to repository
    maintenance checks it cannot satisfy. These are evidence pools, not a
    semantic verdict that the proposal is duplicated.
-
 5. **Prescore, re-rank, and report** (`src/relevance.ts`, `src/rerank.ts`,
    `src/report.ts`) — applies a deterministic, inspectable ranking correction
    for intent coverage, lane agreement, artifact fit, and common retrieval
@@ -113,66 +109,14 @@ static-site link checker says it validates "rendered HTML", not "static
 site alt-text". Formulations reduce this wording sensitivity without
 pretending to eliminate it; see [findings.md](findings.md).
 
-## Running it directly looks like a hang
-
-An MCP server speaks JSON-RPC over stdin and stdout. Run the command in a
-terminal by itself and it prints one line, then waits:
-
-```
-$ npx -y reuse-before-generate
-reuse-before-generate MCP server running on stdio
-```
-
-That is correct behaviour, not a crash. It is waiting for a client to send
-it a message, and a bare terminal never does — the same way `cat` with no
-arguments sits there. Ctrl+C exits.
-
-Your MCP client runs this command for you and speaks the protocol over the
-pipe. To confirm the server works without a client, send it one message:
-
-```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
-  | npx -y reuse-before-generate
-```
-
-It replies with its name and version, then exits when stdin closes.
-
 ## Environment variables
 
 No credential is required. The variables improve normal discovery:
 
-| Variable | Effect |
-|---|---|
-| `GITHUB_TOKEN` | Raises GitHub's search rate limit from 10/min to 30/min. Worth setting. |
+| Variable           | Effect                                                                                                                                                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`   | Raises GitHub's search rate limit from 10/min to 30/min. Worth setting.                                                                                                                                              |
 | `TAVILY_API_KEY` | Enables two bounded Tavily web searches so reusable projects and competing products outside developer indexes can surface separately, plus up to two application distribution lanes when Android or iOS is explicit. |
-
-## Releasing
-
-Four things carry a version and must move together:
-
-1. `package.json` → `version`
-2. `src/index.ts` → the `version` passed to `McpServer`
-3. `server.json` → both `version` and `packages[0].version`
-4. A git tag `vX.Y.Z` plus a GitHub release
-
-Then:
-
-```bash
-npm run build && npm test
-npm publish          # prepublishOnly re-runs build + tests
-git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z
-gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."
-```
-
-**The README inside a published tarball is frozen at publish time.** A
-README fix only reaches the npm package page with a new version, so fix
-docs *before* publishing, not after.
-
-`server.json` describes the server for the
-[official MCP registry](https://registry.modelcontextprotocol.io). The
-`mcpName` field in `package.json` must match its `name` — that is how the
-registry verifies the npm package and the registry entry belong to the
-same owner.
 
 ## Development
 
@@ -186,21 +130,6 @@ npm run eval -- --diff --save                         # compare and save one cle
 npm run eval -- --case json-viewer                    # iterate on one case
 ```
 
-`npm test` is the offline suite that gates every PR.
-
-`npm run check` is the fast loop for search-quality work — per-source
-coverage and retrieved candidates separated into reuse and competition
-pools, without needing an agent session.
-
-`npm run eval` is a different question: not "is it broken" but "is it any
-good". It runs 18 known cases (e.g. "find gitleaks from a description of a
-secret scanner") and reports the target rank within its expected pool.
-Deliberately **not** part of `npm test`, because it depends on live upstream
-ranking that drifts for reasons unrelated to this code. Set `GITHUB_TOKEN`
-and optionally `TAVILY_API_KEY` before running it. A required attempted
-source failure blocks baseline saving; an optional web failure is recorded
-but does not. An unconfigured web source is counted as unavailable, not as
-an attempted failure.
 
 Running the published `dist/` needs Node 18+. Running the test suite needs
 Node 22.6+, which strips TypeScript from `.test.ts` files natively.

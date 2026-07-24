@@ -132,7 +132,6 @@ to reuse/extend an existing project instead of building from scratch.
 For technical details, benchmark evaluation results, and configuration options:
 
 - 🏗️ **[How It Works &amp; Pipeline](docs/how-it-works.md)** — Pipeline architecture, canonicalization, and query execution.
-- 📊 **[Audit &amp; Search Findings](docs/findings.md)** — Measured recall, precision benchmarks, and known retrieval limitations.
 - 🛠️ **[Local CLI &amp; Development](docs/how-it-works.md#development)** — Running from source, unit tests, and eval suite.
 
 ---

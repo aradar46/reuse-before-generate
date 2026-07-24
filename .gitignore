@@ -7,3 +7,7 @@ docs/superpowers/*
 audit/
 simple.md
 GEMINI.md
+.gitignore
+.gitignore
+release.md
+docs/findings.md
