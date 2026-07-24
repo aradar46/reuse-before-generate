@@ -37,11 +37,12 @@ Registered in Antigravity IDE configuration at `/home/adr/.gemini/antigravity-id
 {
   "mcpServers": {
     "reuse-before-generate": {
-      "command": "node",
-      "args": [
-        "/home/adr/Syncthing/Projects/Personal/reuse-before-generate/dist/index.js"
-      ],
-      "env": {}
+      "command": "reuse-before-generate",
+      "args": [],
+      "env": {
+        "GITHUB_TOKEN": "gho_...",
+        "TAVILY_API_KEY": "tvly-dev-..."
+      }
     }
   }
 }

@@ -54,16 +54,16 @@ claude mcp add -s user reuse-before-generate -- npx -y reuse-before-generate
 
 ---
 
-### 2. Cursor, Claude Desktop, Windsurf, or VS Code
+### 2. Cursor, Claude Desktop, Antigravity IDE, Windsurf, or VS Code
 
-Add this snippet to your `mcpServers` configuration (e.g., `~/.claude/mcp.json` or Cursor's MCP settings):
+Add this snippet to your `mcpServers` configuration (e.g., `~/.claude/mcp.json`, `~/.gemini/antigravity-ide/mcp_config.json`, or Cursor's MCP settings):
 
 ```json
 {
   "mcpServers": {
     "reuse-before-generate": {
       "command": "npx",
-      "args": ["-y", "reuse-before-generate"]
+      "args": ["-y", "reuse-before-generate@latest"]
     }
   }
 }
@@ -80,7 +80,7 @@ For higher GitHub rate limits and broader web discovery, pass optional API keys 
   "mcpServers": {
     "reuse-before-generate": {
       "command": "npx",
-      "args": ["-y", "reuse-before-generate"],
+      "args": ["-y", "reuse-before-generate@latest"],
       "env": {
         "GITHUB_TOKEN": "github_pat_your_token_here",
         "TAVILY_API_KEY": "tvly_your_key_here"
