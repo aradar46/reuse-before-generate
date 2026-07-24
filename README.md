@@ -118,6 +118,15 @@ to reuse/extend an existing project instead of building from scratch.
 
 ---
 
+## Known Limitations
+
+- **Formulation Sensitivity**: Keyword and formulation generation depends on the calling agent providing clear intent terms.
+- **Small or Niche Repositories**: GitHub search occasionally buries very new or low-star repositories (under 5 stars).
+- **Maintenance Heuristic**: Repositories active within the last year are considered active; deep contributor/issue health analysis is left to the calling agent.
+- **Optional Web Key**: Web product discovery relies on `TAVILY_API_KEY`. Without it, web search is reported as unavailable.
+
+---
+
 ## 📖 Deep Dives & Documentation
 
 For technical details, benchmark evaluation results, and configuration options:
