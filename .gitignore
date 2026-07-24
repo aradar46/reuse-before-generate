@@ -5,3 +5,4 @@ dist/
 docs/superpowers/*
 .worktrees/
 audit/
+simple.md
