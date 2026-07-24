@@ -22,9 +22,9 @@ This file provides workspace context, architecture rules, and current audit stat
 > All development commits MUST be pushed to the private repository (`origin`).
 
 - **Default Remote (`origin`)**: `https://github.com/aradar46/reuse-before-generate-private.git` (Private Repository)
-  - All `git push` operations default to this remote.
+  - All development, commits, and new versions beyond the v0.10.0 public baseline are strictly private and MUST be pushed to `origin`.
 - **Public Baseline Remote (`public`)**: `https://github.com/aradar46/reuse-before-generate.git` (Public Repository)
-  - Contains open-source v0.10.0 baseline. Do NOT push to `public` without explicit user instructions.
+  - Contains open-source v0.10.0 baseline (git release v0.2.3 tag). Do NOT push to `public` without explicit user instructions.
 
 ---
 
