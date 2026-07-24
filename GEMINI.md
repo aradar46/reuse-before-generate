@@ -12,6 +12,7 @@ This file provides workspace context, architecture rules, and current audit stat
 - **Output Structure**: Deliberately separates returned evidence into two distinct sections:
   1. `Projects you could reuse` (open-source repositories, packages, building blocks)
   2. `Products you would compete with` (commercial product homepages & SaaS evidence)
+- **Lean Discovery Architecture**: Telemetry, energy tracking, and persistent install ID tracking have been completely stripped from the codebase to keep the server lean, fast, and 100% focused on pure candidate discovery.
 
 ---
 
