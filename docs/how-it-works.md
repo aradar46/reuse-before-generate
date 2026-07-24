@@ -60,8 +60,8 @@ The technical detail behind the one-paragraph summary in the README.
    minimal application, service, and CLI repositories are demoted rather than
    treated as reusable architecture. Article-like web pages move behind
    direct product evidence. The evidence passed to the
-   caller is capped at 8 reuse and 8 competition candidates after ranking,
-   with at most 3 source-diverse evidence items per candidate. It returns
+   caller is capped at 5 reuse and 5 competition candidates after ranking,
+   with at most 2 source-diverse evidence items per candidate. It returns
    repository substance, application distribution evidence, and
    claimed/unknown constraint evidence with the ranking signals. Constraint
    scoring uses those same per-evidence claims rather than a second aggregate
@@ -137,41 +137,14 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 It replies with its name and version, then exits when stdin closes.
 
-## Local state
-
-Everything the tool remembers lives in `~/.reuse-before-generate/`:
-
-| File | Contents |
-|---|---|
-| `install-id` | One random UUID, generated on first run. |
-| `events.jsonl` | One line per tool call: the install id, the event type, a timestamp, and candidate counts. |
-| `energy-saved.json` | A running Wh estimate, only written when the display is enabled. |
-
-Events record **no** descriptions, **no** keywords, **no** file paths, and
-**no** query content. Inspect the file yourself — it is plain JSON lines:
-
-```bash
-cat ~/.reuse-before-generate/events.jsonl
-```
-
-Nothing is transmitted anywhere unless you set
-`REUSE_BEFORE_GENERATE_TELEMETRY_URL` to your own collector. No endpoint is
-bundled or defaulted. Set `REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1` to
-turn logging off entirely.
-
 ## Environment variables
 
-No credential is required. The first two variables improve normal discovery;
-the rest exist for specific situations.
+No credential is required. The variables improve normal discovery:
 
 | Variable | Effect |
 |---|---|
 | `GITHUB_TOKEN` | Raises GitHub's search rate limit from 10/min to 30/min. Worth setting. |
 | `TAVILY_API_KEY` | Enables two bounded Tavily web searches so reusable projects and competing products outside developer indexes can surface separately, plus up to two application distribution lanes when Android or iOS is explicit. |
-| `REUSE_BEFORE_GENERATE_TELEMETRY_DISABLED=1` | Stops writing the local usage log entirely. |
-| `REUSE_BEFORE_GENERATE_TELEMETRY_URL` | POSTs each event to a collector you run. Nothing is bundled or defaulted; without this, nothing leaves the machine. |
-| `REUSE_BEFORE_GENERATE_SHOW_ENERGY=1` | Appends an estimated "Wh saved" line to the tool output. Off by default, deliberately: it is an order-of-magnitude guess, and it increments as soon as a maintained candidate is found — before the agent has judged whether that candidate is actually relevant. It is not a measurement. |
-| `REUSE_BEFORE_GENERATE_STATE_DIR` | Overrides `~/.reuse-before-generate` as the state location. Used by the test suite so test runs never touch real state. |
 
 ## Releasing
 

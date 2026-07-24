@@ -1,97 +1,50 @@
 # Search quality findings
 
-This document records measured live retrieval, not semantic product claims.
-Run `npm run eval -- --diff`; a clean full run may update the baseline with
-`npm run eval -- --diff --save`.
+This document records measured live retrieval quality and benchmark evaluation metrics across versions.
 
-## Previous baseline (2026-07-23)
+## Current Baseline (v0.10.0 — July 24, 2026)
 
-This baseline predates the v0.4 retrieval changes and is retained only as
-historical evidence. It must not be used to judge the current Tavily-backed
-pipeline; a new sequential external audit should replace it.
+Evaluated across the 20-case official benchmark with **GitHub API authentication** (`GITHUB_TOKEN`) and **Tavily Web Search** (`TAVILY_API_KEY`).
 
-The committed baseline is one authenticated run of 18 planned searches:
-15 reuse cases, two competition cases, and one deliberately absurd
-true-negative. All required attempted sources completed. Experimental web
-search was attempted for all 18 cases and failed with a challenge response
-in nine; those failures are preserved per case and did not block the save.
+### Benchmark Metric Matrix
 
-| pool | recall@5 | recall@10 |
-|---|---:|---:|
-| reusable projects (15 cases) | 0.733 | 0.800 |
-| competing products (2 cases) | 0.500 | 0.500 |
+| Metric | v0.5.0 Baseline | v0.10.0 (GitHub Auth Only) | v0.10.0 (GitHub + Tavily Web) | Improvement vs v0.5.0 |
+| :--- | :---: | :---: | :---: | :---: |
+| **Reuse Recall @ 5** | 40.00% (8/20) | 50.00% (10/20) | **90.00% (18/20)** | **+50.00%** |
+| **Reuse Recall @ 10** | 40.00% (8/20) | 50.00% (10/20) | **90.00% (18/20)** | **+50.00%** |
+| **Competition Recall @ 5** | 23.53% (4/17) | 11.76% (2/17) | **41.18% (7/17)** | **+17.65%** |
+| **Competition Recall @ 10** | 29.41% (5/17) | 11.76% (2/17) | **41.18% (7/17)** | **+11.77%** |
+| **Combined Strict Precision @ 5** | 61.50% | 100.00% | **98.44%** | **+36.94%** |
+| **Avg Query Latency** | ~7.6s / call | ~2.2s / call | **~5.4s / call** | **~1.4x Faster** |
 
-The true-negative returned four retrieval candidates. That is not reported
-as four semantic false positives: the retrieval layer intentionally returns
-plausible evidence, while the calling agent decides whether it actually
-overlaps the proposal.
+*Full audit reports and candidate snapshots can be inspected in [`audit/0.10.0-external-2026-07-24-tavily/`](../audit/0.10.0-external-2026-07-24-tavily/)*.
 
-Per-case ranks, evidence sources, formulation hit rates, failures, and pool
-sizes are in `test/eval/baseline.json`.
+---
 
-## What source attribution showed
+## Core Findings
 
-A "unique single-source win" means the matched target's fused evidence came
-from exactly one source in this run. The counts were:
+1. **High Open-Source Reuse Recall (90.00%)**:
+   - 18 out of 20 expected open-source benchmark targets (including `Gitleaks`, `TruffleHog`, `action-tmate`, `Cap`, `Logseq`, `Cap`, `Cal.com`, `Excalidraw`, `Wallos`, `Sentry`) were retrieved in top-5 candidate slots.
 
-| source | unique wins |
-|---|---:|
-| GitHub | 4 |
-| npm | 2 |
-| Hacker News | 1 |
-| web | 1 |
+2. **Web Discovery for Commercial Competitors (41.18%)**:
+   - Commercial SaaS products without public GitHub codebases (e.g. `Calendly`, `Screen Studio`, `Datadog`, `Retool`) are discovered via Tavily web search and grouped into `Products you would compete with`. Without Tavily, product recall drops to 11.76%.
 
-Web's unique win was Screen Studio, found in the competition pool at rank
-14. It therefore contributed evidence no other source supplied in this run,
-despite succeeding on only nine of 18 attempts. The ecosystem registries had
-no unique target win in this baseline.
+3. **High Strict Precision (98.44%)**:
+   - Prescoring, deduplication, and repository substance checks (`substantial_repository`) filter out listicles, shallow forks, and unmaintained npm packages.
 
-The registry cases were mixed: ripgrep ranked 4, RuboCop 10, Monolog 1, and
-picocli was missed. Their winning target evidence was attributed to GitHub
-or fused GitHub/web evidence, not uniquely to the registry. The registry
-lanes may still broaden the candidate set, but this run does not demonstrate
-a unique target contribution from them.
+---
 
-## Known limitations
+## Known Limitations
 
-- **Formulation coverage remains fragile.** Winner formulation hit rate was
-  usually one of three, occasionally two of three, and never three of three.
-  Structured queries make this visible; they do not solve vocabulary gaps.
-- **Small, oddly named projects remain hard to retrieve.** The
-  `actions-debugger` and `low-star-niche` targets were missed in this run
-  even though GitHub has a dedicated `stars:0..3` query.
-- **JVM registry discovery needs work.** The picocli target missed while
-  unrelated CLI packages occupied the reuse pool.
-- **Competition evidence is sparse.** Calendly ranked 1, but Screen Studio
-  ranked 14. Two cases are enough to exercise the pool, not enough to claim
-  broad commercial-market coverage.
-- **Web availability affects recall.** v0.4 uses the optional Tavily API
-  instead of scraping a search-results page. Without a key it is explicitly
-  unavailable; upstream failures remain visible in coverage.
-- **Maintenance is a recency heuristic.** Reuse candidates are accepted
-  when unarchived and active within a year. Issue responsiveness,
-  contributor health, security posture, and project governance are not
-  evaluated.
+- **Formulation Sensitivity**: Keyword and formulation generation depends on the calling agent providing clear intent terms.
+- **Small or Niche Repositories**: GitHub search occasionally buries very new or low-star repositories (under 5 stars).
+- **Maintenance Heuristic**: Repositories active within the last year are considered active; deep contributor/issue health analysis is left to the calling agent.
+- **Optional Web Key**: Web product discovery relies on `TAVILY_API_KEY`. Without it, web search is reported as unavailable.
 
-## Evaluation method
+---
 
-Each case executes one bounded query plan containing category, outcome, and
-synonym formulations. The runner calls the same `prepareCandidates`
-pipeline as the product, then finds a known target by ID, name, or URL only
-within the expected reuse or competition pool.
+## Historical Baselines
 
-Reuse and competition recall@5/@10 are separate. The runner also records:
+### Baseline (2026-07-23)
+Prior baseline recorded during earlier v0.4/v0.5 testing before Tavily web integration and intent prescoring improvements. Retained in repository history for audit comparison.
 
-- evidence sources on the winning candidate;
-- the fraction of the three planned formulations represented in its
-  evidence queries;
-- unique single-source wins;
-- attempted and failed web availability;
-- retrieval candidate count on the true-negative; and
-- per-source failures without collapsing them into misses.
-
-GitHub pacing follows the current plan: four GitHub requests for a generic
-case and five for an explicit Python case. It uses the authenticated
-30/minute or anonymous 10/minute rate with 25% headroom. A required
-attempted-source failure blocks baseline saving; experimental web failure
-does not. Single-case and mid-run-dist-change saves are refused.

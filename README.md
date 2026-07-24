@@ -5,132 +5,58 @@
 [![license](https://img.shields.io/npm/l/reuse-before-generate)](LICENSE)
 [![reuse-before-generate MCP server](https://glama.ai/mcp/servers/aradar46/reuse-before-generate/badges/score.svg)](https://glama.ai/mcp/servers/aradar46/reuse-before-generate)
 
-**Your idea probably already exists. Find out before you build it, not after.**
+# Your idea probably already exists. Find out before you build it, not after.
 
-Here is how it usually goes. You have an idea. You ask a frontier model
-what it thinks, and it tells you the space is wide open and people would
-love it. So you tell your agent to build it, and it writes thousands of
-lines for something that already exists.
+You ask an AI model about an idea, it tells you the space is wide open. You tell your agent to build it, and it churns out thousands of lines for something that already exists or nobody wants.
 
-That happened to me. I kept hitting the same failing Android CI build,
-waiting for a re-run, hitting it again. I thought: someone should be able
-to pause the build and get a shell inside it. I asked an AI, it told me
-this was a genuinely good idea, and I built
-[fermata](https://github.com/aradar46/fermata).
+That happened to me. I kept hitting the same failing Android CI build and wished I could pause it, open a shell inside, fix the bug, and rerun. I asked THE Fable 5, it told me it was a brilliant idea, so I built [fermata](https://github.com/aradar46/fermata). A complete waste of time, tokens, and energy. Later I found out tools like action-tmate, actl, and actdbg already existed. AI models are just overenthusiastic and blind to what is out there.
 
-Then I found `action-tmate`. 3,566 stars. Does exactly that. Has for years.
+## The big picture
 
-This server is the check I wish I'd run. Ask your agent to build something
-and it looks first. The response deliberately has two sections:
-
-- **Projects you could reuse** — maintained open-source repositories and
-  packages that may be worth adopting or extending.
-- **Products you would compete with** — existing product evidence that
-  may validate the market, change the positioning, or save a duplicate build.
-
-Those are retrieval pools, not verdicts. The calling agent compares the
-actual capabilities and explains whether anything is genuinely equivalent.
-
-> Before building — this already exists:
->
-> 1. **action-tmate** (3,566★, updated today) — "Debug your GitHub Actions
->    via SSH by using tmate to get access to the runner system itself."
->
-> Actively maintained and widely used. Want to try it, or is there
-> something yours would do differently?
-
-Sometimes the answer really is "mine is different, keep going." Sometimes
-it saves you a weekend. Either way you find out in ten seconds instead of
-after.
-
-Why bother: fewer wasted hours, fewer abandoned projects nobody uses, and
-less energy burned generating code that already exists. Jenna Pederson put
-the general case well in [*You Can Build It, But Should
-You?*](https://dev.to/jennapederson/you-can-build-it-should-you-9e0) — AI
-removed the friction that used to force you to ask whether something is
-worth building at all.
-
-For the record, this tool did not survive its own test either!
-But I had to build it to find out. Hopefully it will prevent me from doing it again.
-
-## What it searches
-
-One bounded plan searches GitHub, GitLab, Show HN and, when the
-ecosystem is explicit, crates.io, RubyGems, Packagist, Maven Central, or a
-Python-specific repository lane. npm is searched for library and CLI
-requests, but skipped for applications and services where package results are
-usually noise. These sources are keyless. Optional Tavily search broadens
-discovery beyond developer indexes so both reusable projects and existing
-products can surface.
-
-The agent may supply structured intent: a category name, the outcome the
-tool should achieve, alternative terminology, must-have constraints, ordered
-preferences, and whether the desired artifact is an application, service,
-CLI, or library. Ordered preferences let a caller say Android first and iOS
-second while still discovering both. Older clients can omit these optional
-fields. The planner uses a fixed number of requests; intent fields do not
-create an unbounded search loop.
-
-Results receive a transparent local prescore before the calling agent makes
-the final semantic judgment. It rewards workflow and constraint fit and
-penalizes predictable noise such as listicles, integration components, and
-npm-only packages returned for application requests. For library requests,
-npm remains first-class evidence. The final shortlist deliberately reserves
-room for both an established, relevant project and a promising niche project;
-raw popularity alone cannot earn the authority slot. Official homepages also
-link open-source projects to their existing product identity, so one entity
-can correctly appear in both sections. Returned evidence is capped after
-ranking to five candidates per section and two source-diverse evidence
-records per candidate. Informational pages are never used to pad the product
-section. Tavily formulations adapt to the artifact type and must-have
-constraints instead of treating every request as self-hosted software.
-Application plans with explicit Android or iOS intent also receive bounded,
-domain-restricted F-Droid or App Store discovery lanes. Recognized source
-links in Tavily page content can join an official product page to its GitHub
-or GitLab repository, preferring links explicitly labelled as source or the
-official repository over mirrors and site templates.
-
-Repository size, forks, latest published GitHub release metadata for at most
-five leading repositories, and constraint evidence are returned as confidence
-signals. Application-store evidence is surfaced as a distribution-maturity
-signal. A very small application repository is marked
-`minimal_repository` and demoted rather than presented as an implemented
-foundation. A larger repository is only marked `substantial_repository`;
-size alone does not verify implementation quality. Constraint and priority
-matches are explicitly `claimed` or `unknown`. Common equivalent wording,
-such as “no signup” for “no account” or “stays on your device” for local-only
-storage, is recognized without turning claims into verification. The same
-per-evidence claims drive both ranking and the evidence shown to the caller,
-so those fields cannot contradict one another. Retrieved claims are not
-represented as independently verified facts. The
-calling agent reports functional overlap, reuse readiness, product maturity,
-constraint evidence, and confidence separately instead of collapsing them
-into one numeric score.
-
-Every response includes **Search coverage**, naming both searched and
-unavailable sources. An empty result is reported cautiously: it means no
-strong candidate was retrieved from the available sources, not that the
-idea is unique or safe to build without further research.
-
-## Install
-
-No API key is required. Optional credentials improve coverage and throughput.
-
-```bash
-claude mcp add reuse-before-generate -- npx -y reuse-before-generate
-
+```mermaid
+flowchart TD
+    You["👤 You: Build me something"] --> AI["🤖 Your Hype-Man AI"]
+    AI --> Tool["🔎 This MCP: Reuse_Before_Generate"]
+    Tool --> Plan["Turn the idea into good search phrases"]
+    Plan --> Shelves["Search several internet shelves"]
+    Shelves --> Clean["Join copies and remove weak results"]
+    Clean --> Boxes{"Put results into two boxes"}
+    Boxes --> Reuse["🧩 Projects you may reuse"]
+    Boxes --> Compete["🏪 Products you may compete with"]
+    Reuse --> AIJudge["🤖 Your AI reads the evidence"]
+    Compete --> AIJudge
+    AIJudge --> Answer["👤 You get a short, useful answer"]
 ```
-or install it to user scope so it loads everywhere:
+
+ Sometimes your version really is different and you should keep going. Sometimes it saves you a weekend. Either way, you find out in after **ten seconds instead of  10000  lines of code.**
+
+## Why bother?
+
+Fewer **wasted hours,** fewer **abandoned project**s, and less **energy** burned generating duplicate code and **hurting the environment**. Jenna Pederson nailed it in **[*You Can Build It, But Should You?*](https://dev.to/jennapederson/you-can-build-it-should-you-9e0),** AI removed the friction that used to make us ask whether something is worth building at all.
+
+For the record, this tool did not survive its own test either. But I had to build it to find out, and hopefully it keeps me from doing it again.
+
+---
+
+## ⚡ Quick Start & Installation
+
+**No API keys** required to start. But **Tavily API key is recommended,** it is free to some extent and gives better competition coverage.
+
+### 1. Claude Code CLI
+
+To install it for all projects, run:
+
 ```bash
-# claude mcp remove reuse-before-generate
 claude mcp add -s user reuse-before-generate -- npx -y reuse-before-generate
+# To install it for current project only:
+# claude mcp add reuse-before-generate -- npx -y reuse-before-generate
 ```
 
-Then start a **new** session and try it on an idea of your own — the one
-you were about to build.
+---
 
-Or add it to `.mcp.json` yourself — this works in Cursor, Claude Desktop,
-and any other MCP client:
+### 2. Cursor, Claude Desktop, Windsurf, or VS Code
+
+Add this snippet to your `mcpServers` configuration (e.g., `~/.claude/mcp.json` or Cursor's MCP settings):
 
 ```json
 {
@@ -143,9 +69,11 @@ and any other MCP client:
 }
 ```
 
-**Optional but recommended:** add a fine-grained GitHub token and a Tavily
-key. The GitHub token raises search throughput; Tavily adds web discovery.
-Keep secrets in your MCP client's environment configuration, not in prompts.
+---
+
+### 3. Optional: Add Search Keys (Higher Limits & Web Search)
+
+For higher GitHub rate limits and broader web discovery, pass optional API keys in your environment:
 
 ```json
 {
@@ -162,85 +90,44 @@ Keep secrets in your MCP client's environment configuration, not in prompts.
 }
 ```
 
-### Running from source
+- **`GITHUB_TOKEN`**: Increases GitHub API search rate limit (from 10 to 30 req/min).
+- **`TAVILY_API_KEY`**: Enables web search to discover non-GitHub commercial products & SaaS tools.
 
-```bash
-git clone https://github.com/aradar46/reuse-before-generate
-cd reuse-before-generate
-npm install && npm run build
-claude mcp add reuse-before-generate -- node "$PWD/dist/index.js"
-```
+---
 
-## Make it automatic
+## 🤖 Make It Automatic:
 
-By default your agent only checks when you ask it to. To make it check
-every time, paste this into your `CLAUDE.md` (or `.cursorrules`):
+By default, your AI agent only checks when you explicitly ask. To force your agent to check **automatically** before building anything new, add this paragraph to your `CLAUDE.md`, `.cursorrules`, or `AGENTS.md`:
 
 ```markdown
-Before scaffolding a new project or a substantial new module, call
-`check_before_building` first. If it finds a maintained alternative that
-really does the job, tell me about it and ask whether to extend that
-instead of building from scratch.
+Before scaffolding a new project or building a substantial new module, call
+`check_before_building` (or `reuse_before_generate`) from the `reuse-before-generate` MCP server first.
+If it finds maintained open-source alternatives or competing products, present them and ask whether
+to reuse/extend an existing project instead of building from scratch.
 ```
 
-That one paragraph is the whole point of the tool. Without it, the check
-only happens when you remember to ask.
+---
 
-## Does it actually work?
+## 💡 How It Works (At a Glance)
 
-It's measured, not vibes. There are live cases with known right answers
-— "find `gitleaks` from a description of a secret scanner", that sort of
-thing — and separate commercial-product cases. Reuse and competition recall
-are scored independently. One deliberately absurd case records how many
-candidates retrieval returned; it is not mislabeled as a semantic
-false-positive test because the server does not make the final relevance
-judgment.
+1. **Multi-Shelf Search**: Searches GitHub, GitLab, Show HN, package registries (npm, PyPI, crates.io, RubyGems, Maven), and Tavily web search.
+2. **Dual-Box Evidence**: Distinguishes between:
+   - 🧩 **Projects you could reuse** (maintained open-source repositories)
+   - 🏪 **Products you would compete with** (SaaS tools & commercial software)
+3. **Zero Extra Cost**: Doesn't make any separate LLM API calls. It returns raw, ranked evidence so your active AI session performs the semantic evaluation.
 
-Details, including where it still fails, are in
-**[docs/findings.md](docs/findings.md)**.
+---
 
-## Settings
+## 📖 Deep Dives & Documentation
 
-The optional settings are **`GITHUB_TOKEN`** and **`TAVILY_API_KEY`**.
-GitHub authentication improves repository-search throughput. Tavily adds two
-bounded web queries per check—one for reusable implementations and one for
-existing products—and up to two additional platform-distribution queries when
-an application request explicitly mentions Android or iOS. Without it,
-coverage reports web as unavailable rather than failed. Set either or both in
-the `env` block shown in
-[Install](#install).
+For technical details, benchmark evaluation results, and configuration options:
 
-It also keeps a local count of its own usage in
-`~/.reuse-before-generate/events.jsonl` — a random ID, a timestamp, and how
-many results came back. Nothing is sent anywhere. See
-[local state](docs/how-it-works.md#local-state) to read or disable it, and
-[all environment variables](docs/how-it-works.md#environment-variables) for
-the rest.
+- 🏗️ **[How It Works &amp; Pipeline](docs/how-it-works.md)** — Pipeline architecture, canonicalization, and query execution.
+- 📊 **[Audit &amp; Search Findings](docs/findings.md)** — Measured recall, precision benchmarks, and known retrieval limitations.
+- 🛠️ **[Local CLI &amp; Development](docs/how-it-works.md#development)** — Running from source, unit tests, and eval suite.
 
-## Where it still falls short
-
-Honest list, because you'll hit these:
-
-- **Retrieval is lexical.** The three formulations reduce wording
-  sensitivity, but a product or project can still use terminology none of
-  them covers.
-- **Very small or oddly-named repos are hard to find.** GitHub's own search
-  buries them. There's a dedicated search lane for this and it helps, but
-  doesn't fully solve it.
-- **"Maintained" just means "touched in the last year."** It doesn't check
-  whether issues get answered or whether the project is actually healthy.
-- **Web search is optional.** Without `TAVILY_API_KEY`, coverage reports it
-  as unavailable. Upstream errors are reported separately as failures.
-
-All measured and written up in [docs/findings.md](docs/findings.md).
-
-## More
-
-- [How it works](docs/how-it-works.md) — the pipeline, and why the server
-  never calls an LLM itself
-- [Findings](docs/findings.md) — what's been measured, and what's still broken
-- [Contributing](docs/how-it-works.md#development) — tests, local CLI, eval
+---
 
 ## License
 
-MIT
+[MIT](LICENSE)

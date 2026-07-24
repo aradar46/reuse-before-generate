@@ -6,13 +6,10 @@ import {
 import type { RawCandidate } from "./candidate.js";
 import type { Result } from "./result.js";
 import type { PreparedCandidate } from "./verify.js";
-import type { TelemetryEvent } from "./telemetry.js";
 import { searchAllResults } from "./search.js";
 import { prepareCandidates } from "./verify.js";
 import { buildRerankPrompt } from "./rerank.js";
 import { formatCoverage } from "./report.js";
-import { maybeEnergyLine } from "./energy.js";
-import { track } from "./telemetry.js";
 
 export interface CheckInput {
   description: string;
@@ -30,8 +27,6 @@ export interface CheckDependencies {
     raw: readonly RawCandidate[],
     plan?: QueryPlan,
   ) => Promise<PreparedCandidate[]>;
-  energy: () => string;
-  track: (event: TelemetryEvent) => void;
 }
 
 export interface CheckResponse {
@@ -43,8 +38,6 @@ export interface CheckResponse {
 const defaultDependencies: CheckDependencies = {
   search: searchAllResults,
   prepare: prepareCandidates,
-  energy: maybeEnergyLine,
-  track,
 };
 
 const NO_STRONG_MATCH = "No strong match found in the sources searched.";
@@ -53,7 +46,6 @@ export async function runCheckBeforeBuilding(
   input: CheckInput,
   dependencies: CheckDependencies = defaultDependencies,
 ): Promise<CheckResponse> {
-  dependencies.track({ type: "tool_invoked" });
   try {
     const results = await dependencies.search(
       input.description,
@@ -62,7 +54,6 @@ export async function runCheckBeforeBuilding(
     );
     const coverage = formatCoverage(results);
     if (coverage.allFailed) {
-      dependencies.track({ type: "error", stage: "search" });
       return {
         content: [{
           type: "text",
@@ -74,7 +65,6 @@ export async function runCheckBeforeBuilding(
 
     const raw = results.flatMap((result) => result.ok ? result.value : []);
     if (raw.length === 0) {
-      dependencies.track({ type: "no_candidates_found" });
       return {
         content: [{
           type: "text",
@@ -90,14 +80,6 @@ export async function runCheckBeforeBuilding(
       input.queries,
     );
     const prepared = await dependencies.prepare(raw, plan);
-    const maintainedCount = prepared.filter(
-      (candidate) => candidate.pool === "reuse",
-    ).length;
-    dependencies.track({
-      type: "candidates_found",
-      count: raw.length,
-      maintainedCount,
-    });
     if (prepared.length === 0) {
       return {
         content: [{
@@ -112,11 +94,10 @@ export async function runCheckBeforeBuilding(
     return {
       content: [{
         type: "text",
-        text: `${prompt}${dependencies.energy()}\n\n${coverage.text}`,
+        text: `${prompt}\n\n${coverage.text}`,
       }],
     };
   } catch (error) {
-    dependencies.track({ type: "error", stage: "check_before_building" });
     const message = error instanceof Error ? error.message : String(error);
     return {
       content: [{

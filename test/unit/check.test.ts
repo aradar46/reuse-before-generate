@@ -9,7 +9,6 @@ const queries = {
 };
 
 test("all failed sources return an error with honest coverage", async () => {
-  const events: unknown[] = [];
   const response = await runCheckBeforeBuilding(
     { description: "browse JSON in a terminal", keywords: ["json", "terminal", "viewer"], queries },
     {
@@ -20,8 +19,6 @@ test("all failed sources return an error with honest coverage", async () => {
       prepare: async () => {
         throw new Error("must not prepare");
       },
-      energy: () => "",
-      track: (event) => events.push(event),
     },
   );
 
@@ -32,10 +29,6 @@ test("all failed sources return an error with honest coverage", async () => {
   );
   assert.match(response.content[0].text, /Searched: none/);
   assert.match(response.content[0].text, /Failed: github \(HTTP 403\); npm \(HTTP 503\)/);
-  assert.deepEqual(events, [
-    { type: "tool_invoked" },
-    { type: "error", stage: "search" },
-  ]);
 });
 
 test("empty retrieval gives the exact honest negative caveat and coverage", async () => {
@@ -47,8 +40,6 @@ test("empty retrieval gives the exact honest negative caveat and coverage", asyn
         { ok: false, source: "web", reason: "challenge response" },
       ],
       prepare: async () => [],
-      energy: () => "",
-      track: () => {},
     },
   );
 
@@ -70,8 +61,6 @@ test("an empty prepared set gives the same cautious conclusion", async () => {
         value: [{ id: "inactive" }],
       }],
       prepare: async () => [],
-      energy: () => "",
-      track: () => {},
     },
   );
 
@@ -82,7 +71,6 @@ test("an empty prepared set gives the same cautious conclusion", async () => {
 
 test("pipeline passes formulations, counts only prepared reuse, and appends coverage", async () => {
   let seenQueries: unknown;
-  const events: unknown[] = [];
   const prepared = [
     {
       source: "github",
@@ -120,20 +108,11 @@ test("pipeline passes formulations, counts only prepared reuse, and appends cove
         return [{ ok: true, source: "github", value: [{ id: "raw" }] }];
       },
       prepare: async () => prepared,
-      energy: () => "\nEnergy note",
-      track: (event) => events.push(event),
     },
   );
 
   assert.deepEqual(seenQueries, queries);
   assert.match(response.content[0].text, /Projects you could reuse/);
   assert.match(response.content[0].text, /Products you would compete with/);
-  assert.match(response.content[0].text, /Energy note/);
   assert.match(response.content[0].text, /Search coverage:/);
-  assert.deepEqual(events.at(-1), {
-    type: "candidates_found",
-    count: 1,
-    maintainedCount: 1,
-  });
-  assert.doesNotMatch(JSON.stringify(events), /terminal json|browse JSON/i);
 });

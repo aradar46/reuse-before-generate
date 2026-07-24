@@ -18,58 +18,66 @@ const server = new McpServer({
   version: "0.10.0",
 });
 
+const toolConfig = {
+  description:
+    "Run this BEFORE scaffolding a new project or a substantial new module. " +
+    "Searches GitHub, npm, GitLab, Show HN, optional Tavily web search, " +
+    "Python repositories when relevant, and one ecosystem registry for Rust, " +
+    "Ruby, PHP, or JVM projects. Returns both reusable projects and products " +
+    "the proposal would compete with, plus complete retrieval evidence. " +
+    "The calling agent (you) remains responsible for semantic relevance " +
+    "judgment and must follow the returned scoring instructions. " +
+    "REQUIRES you to supply `keywords` yourself (see its field description) " +
+    "— do not guess this tool can extract good search terms on its own; " +
+    "generic terms like 'mcp'/'agent'/'server' will bury results in noise.",
+  inputSchema: z.object({
+    description: z
+      .string()
+      .min(10)
+      .describe(
+        "Plain-language description of the project/module about to be built — what it does, not how. The more specific, the better the match quality.",
+      ),
+    keywords: z
+      .array(z.string())
+      .min(3)
+      .max(6)
+      .describe(
+        "REQUIRED: 3-4 precise search terms YOU infer from the description, using your own understanding of what the user actually means — do this especially when the description is vague, informal, or from a non-native speaker. Pick the concrete domain noun a maintainer would actually put in their README, not a generic category word: e.g. for 'thing that checks my code doesn't have secret keys by mistake' prefer [\"git\", \"secrets\", \"detect\", \"leak\"] over [\"secret\", \"scanner\", \"detect\", \"git\"] — 'scanner' is broad enough to pull in unrelated security-tool listicles, while 'leak'/'secrets' matches how gitleaks/trufflehog actually describe themselves. Avoid generic tooling-ecosystem words (mcp, agent, server, tool, app) unless the description has nothing more specific — they return noise (awesome-lists, unrelated MCP servers) rather than real competitors. Critically, favor the word a maintainer would use to describe WHAT THE TOOL IS over the word describing the USER'S PROBLEM: a real 'pretty JSON in the terminal' tool likely calls itself a 'viewer' or 'processor', not a 'pretty-printer'/'colorizer'; a real static-site link checker likely says it validates 'rendered HTML', not 'static site alt-text'. If your first guess doesn't match, mentally simulate the README of the tool you're picturing and pull words straight from that sentence.",
+      ),
+    queries: z
+      .object({
+        category: z.string().min(2),
+        outcome: z.string().min(2),
+        synonyms: z.string().min(2),
+        constraints: z
+          .array(z.string().min(2))
+          .max(8)
+          .optional(),
+        priorities: z
+          .array(z.string().min(2))
+          .max(4)
+          .optional()
+          .describe(
+            "Ordered preferences from most important to least important, such as [\"Android\", \"iOS\"]. Both can appear in results, but earlier entries receive more ranking weight.",
+          ),
+        artifactType: z.enum(ARTIFACT_TYPES).optional(),
+      })
+      .optional()
+      .describe(
+        "Optional high-quality intent inferred semantically by the calling agent: category names what this is, outcome says what it accomplishes, synonyms supplies distinct terminology maintainers or product makers may use, constraints supplies up to 8 must-have properties, priorities supplies up to 4 ordered preferences, and artifactType says whether the desired result is an application, hosted service, CLI, or library. Older callers may omit these optional fields; the server will infer conservative fallbacks.",
+      ),
+  }),
+};
+
 server.registerTool(
   "check_before_building",
-  {
-    description:
-      "Run this BEFORE scaffolding a new project or a substantial new module. " +
-      "Searches GitHub, npm, GitLab, Show HN, optional Tavily web search, " +
-      "Python repositories when relevant, and one ecosystem registry for Rust, " +
-      "Ruby, PHP, or JVM projects. Returns both reusable projects and products " +
-      "the proposal would compete with, plus complete retrieval evidence. " +
-      "The calling agent (you) remains responsible for semantic relevance " +
-      "judgment and must follow the returned scoring instructions. " +
-      "REQUIRES you to supply `keywords` yourself (see its field description) " +
-      "— do not guess this tool can extract good search terms on its own; " +
-      "generic terms like 'mcp'/'agent'/'server' will bury results in noise.",
-    inputSchema: z.object({
-      description: z
-        .string()
-        .min(10)
-        .describe(
-          "Plain-language description of the project/module about to be built — what it does, not how. The more specific, the better the match quality.",
-        ),
-      keywords: z
-        .array(z.string())
-        .min(3)
-        .max(6)
-        .describe(
-          "REQUIRED: 3-4 precise search terms YOU infer from the description, using your own understanding of what the user actually means — do this especially when the description is vague, informal, or from a non-native speaker. Pick the concrete domain noun a maintainer would actually put in their README, not a generic category word: e.g. for 'thing that checks my code doesn't have secret keys by mistake' prefer [\"git\", \"secrets\", \"detect\", \"leak\"] over [\"secret\", \"scanner\", \"detect\", \"git\"] — 'scanner' is broad enough to pull in unrelated security-tool listicles, while 'leak'/'secrets' matches how gitleaks/trufflehog actually describe themselves. Avoid generic tooling-ecosystem words (mcp, agent, server, tool, app) unless the description has nothing more specific — they return noise (awesome-lists, unrelated MCP servers) rather than real competitors. Critically, favor the word a maintainer would use to describe WHAT THE TOOL IS over the word describing the USER'S PROBLEM: a real 'pretty JSON in the terminal' tool likely calls itself a 'viewer' or 'processor', not a 'pretty-printer'/'colorizer'; a real static-site link checker likely says it validates 'rendered HTML', not 'static site alt-text'. If your first guess doesn't match, mentally simulate the README of the tool you're picturing and pull words straight from that sentence.",
-        ),
-      queries: z
-        .object({
-          category: z.string().min(2),
-          outcome: z.string().min(2),
-          synonyms: z.string().min(2),
-          constraints: z
-            .array(z.string().min(2))
-            .max(8)
-            .optional(),
-          priorities: z
-            .array(z.string().min(2))
-            .max(4)
-            .optional()
-            .describe(
-              "Ordered preferences from most important to least important, such as [\"Android\", \"iOS\"]. Both can appear in results, but earlier entries receive more ranking weight.",
-            ),
-          artifactType: z.enum(ARTIFACT_TYPES).optional(),
-        })
-        .optional()
-        .describe(
-          "Optional high-quality intent inferred semantically by the calling agent: category names what this is, outcome says what it accomplishes, synonyms supplies distinct terminology maintainers or product makers may use, constraints supplies up to 8 must-have properties, priorities supplies up to 4 ordered preferences, and artifactType says whether the desired result is an application, hosted service, CLI, or library. Older callers may omit these optional fields; the server will infer conservative fallbacks.",
-        ),
-    }),
-  },
+  toolConfig,
+  async (input) => runCheckBeforeBuilding(input),
+);
+
+server.registerTool(
+  "reuse_before_generate",
+  toolConfig,
   async (input) => runCheckBeforeBuilding(input),
 );
 

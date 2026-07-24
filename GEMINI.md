@@ -31,6 +31,7 @@ This file provides workspace context, architecture rules, and current audit stat
 ## 3. Installed MCP Configuration
 
 Registered in Antigravity IDE configuration at `/home/adr/.gemini/antigravity-ide/mcp_config.json`:
+
 ```json
 {
   "mcpServers": {
@@ -46,6 +47,7 @@ Registered in Antigravity IDE configuration at `/home/adr/.gemini/antigravity-id
 ```
 
 ### Environment Variables & Credentials
+
 - `GITHUB_TOKEN`: Obtained via `gh auth token` CLI for authenticated rate limits (30 req/min).
 - `TAVILY_API_KEY`: Configured (`tvly-dev-...`) for Tavily web search to discover commercial SaaS products.
 
@@ -54,13 +56,16 @@ Registered in Antigravity IDE configuration at `/home/adr/.gemini/antigravity-id
 ## 4. Audit & Benchmark Performance (v0.10.0)
 
 ### 20-Case Official Benchmark ([audit/0.10.0-external-2026-07-24-tavily/](file:///home/adr/Syncthing/Projects/Personal/reuse-before-generate/audit/0.10.0-external-2026-07-24-tavily/))
+
 - **Reuse Recall @ 5**: **90.00%** (18/20 expected open-source targets found in top 5).
 - **Competition Recall @ 5**: **41.18%** (7/17 commercial product targets found).
 - **Combined Strict Precision @ 5**: **98.44%** (Zero noise / listicle candidates in top 5).
 - **Average Retrieval Latency**: **~5.4s / call** with web search active.
 
 ### Realistic User Idea Audit ([audit/isolated-audit/](file:///home/adr/Syncthing/Projects/Personal/reuse-before-generate/audit/isolated-audit/))
+
 Validated across 5 user scenarios:
+
 1. *Pet Health Tracker*: Identified `knokvik/PetTrove` & `cocohub-main`.
 2. *Period Tracker App*: Identified `J-shw/Menstrudel` (97★) & `ovumcy/ovumcy-web` (79★).
 3. *Expense Tracker CLI*: Identified plain-text accounting modules.

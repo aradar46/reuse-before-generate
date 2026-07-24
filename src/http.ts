@@ -11,9 +11,7 @@
 //    neither hold the process open nor accumulate (measured flat across
 //    250k calls).
 //
-// GET only, deliberately. telemetry.ts POSTs with a body and its own 2s
-// deadline and keeps its own fetch call; generalizing this to cover one
-// caller with different needs would buy nothing today.
+// GET and POST helpers for outbound HTTP requests with timeouts.
 
 export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
