@@ -129,10 +129,10 @@ to reuse/extend an existing project instead of building from scratch.
 
 ## 📖 Deep Dives & Documentation
 
-For technical details, benchmark evaluation results, and configuration options:
+For technical details, pipeline architecture, and local development:
 
-- 🏗️ **[How It Works &amp; Pipeline](docs/how-it-works.md)** — Pipeline architecture, canonicalization, and query execution.
-- 🛠️ **[Local CLI &amp; Development](docs/how-it-works.md#development)** — Running from source, unit tests, and eval suite.
+- 🏗️ **[How It Works & Pipeline](docs/how-it-works.md)** — Pipeline architecture, canonicalization, and query execution.
+- 🛠️ **[Local CLI & Development](docs/how-it-works.md#development)** — Running from source, unit tests, and local evaluation suite.
 
 ---
 

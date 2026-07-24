@@ -107,7 +107,7 @@ problem. This is not cosmetic. A real "pretty JSON in the terminal" tool
 calls itself a "viewer" or "processor", not a "pretty-printer". A real
 static-site link checker says it validates "rendered HTML", not "static
 site alt-text". Formulations reduce this wording sensitivity without
-pretending to eliminate it; see [findings.md](findings.md).
+pretending to eliminate it.
 
 ## Environment variables
 
