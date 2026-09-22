@@ -2,12 +2,5 @@ node_modules/
 dist/
 *.log
 .test-state/
-docs/superpowers/*
 .worktrees/
-audit/
-simple.md
 GEMINI.md
-.gitignore
-.gitignore
-release.md
-docs/findings.md
