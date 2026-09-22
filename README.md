@@ -71,7 +71,7 @@ node index.js "gnome speech to text offline"
 
 ---
 
-## 🤖 Make It Automatic for AI Agents
+## Make It Automatic for AI Agents
 
 To ensure your AI assistant checks for existing solutions **before writing code**, add this instruction to your `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, or `AGENTS.md`:
 
@@ -82,12 +82,11 @@ Before scaffolding a new project or substantial new module from scratch:
 3. Present existing alternatives in a concise table and ask the user whether to reuse or extend an existing project instead of building from scratch.
 ```
 
-
 ---
 
-## 🤖 AI Disclosure
+## AI Disclosure
 
-For details on how AI is used in this project, see [What I delegate to AI and what I don't](https://aradar.top/posts/what-i-delegate-to-ai-and-what-i-dont/).
+For details on how AI is used in this project, see [What I delegate to AI and what I don&#39;t](https://aradar.top/posts/what-i-delegate-to-ai-and-what-i-dont/).
 
 ---
 
