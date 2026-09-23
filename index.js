@@ -4,7 +4,10 @@ import readline from "node:readline";
 // Clean conversational filler words if user/AI passes raw sentence
 function cleanQuery(text) {
   return text
-    .replace(/\b(i want to make|i want to build|how to build|build a|build an|create a|create an|a tool that|an app for|an app that|a library for|that does|that do)\b/gi, "")
+    .replace(
+      /\b(i want to make|i want to build|how to build|build a|build an|create a|create an|a tool that|an app for|an app that|a library for|that does|that do)\b/gi,
+      ""
+    )
     .replace(/[^\w\s-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -154,7 +157,7 @@ async function searchDockerHub(query) {
   }));
 }
 
-// Search Maven Central's public search service.
+// Search Maven Central via Sonatype search API.
 async function searchMaven(query) {
   const url = new URL("https://search.maven.org/solrsearch/select");
   url.searchParams.set("q", query);
@@ -164,16 +167,16 @@ async function searchMaven(query) {
   const data = await fetchPublicJson(url);
   if (!Array.isArray(data?.response?.docs)) return [];
 
-  return data.response.docs.map((artifact) => ({
+  return data.response.docs.map((doc) => ({
     source: "maven",
-    name: artifact.id,
-    version: artifact.latestVersion || "latest",
-    url: `https://central.sonatype.com/artifact/${artifact.id}`,
+    name: `${doc.g}:${doc.a}`,
+    version: doc.latestVersion || "latest",
+    url: `https://central.sonatype.com/artifact/${encodeURIComponent(doc.g)}/${encodeURIComponent(doc.a)}`,
     description: "",
   }));
 }
 
-// Search RubyGems' public search endpoint.
+// Search RubyGems.
 async function searchRubyGems(query) {
   const url = new URL("https://rubygems.org/api/v1/search.json");
   url.searchParams.set("query", query);
@@ -191,15 +194,16 @@ async function searchRubyGems(query) {
   }));
 }
 
-// Search Packagist's public package index.
+// Search Packagist for PHP packages.
 async function searchPackagist(query) {
   const url = new URL("https://packagist.org/search.json");
   url.searchParams.set("q", query);
+  url.searchParams.set("per_page", "3");
 
   const data = await fetchPublicJson(url);
   if (!Array.isArray(data?.results)) return [];
 
-  return data.results.slice(0, 3).map((pkg) => ({
+  return data.results.map((pkg) => ({
     source: "packagist",
     name: pkg.name,
     url: pkg.url || `https://packagist.org/packages/${pkg.name}`,
@@ -208,9 +212,225 @@ async function searchPackagist(query) {
   }));
 }
 
+// Search Flathub for Linux desktop applications.
+async function searchFlathub(query) {
+  try {
+    const res = await fetch("https://flathub.org/api/v2/search", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "reuse-before-generate",
+      },
+      body: JSON.stringify({ query }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!Array.isArray(data?.hits)) return [];
+    return data.hits.slice(0, 3).map((h) => ({
+      source: "flathub",
+      name: h.name,
+      appId: h.app_id,
+      url: `https://flathub.org/apps/${h.app_id}`,
+      description: h.summary || "",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// Search F-Droid for open-source Android apps.
+async function searchFDroid(query) {
+  try {
+    const url = `https://search.f-droid.org/?q=${encodeURIComponent(query)}&lang=en`;
+    const res = await fetch(url, {
+      headers: { "User-Agent": "reuse-before-generate" },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const regex =
+      /<a class="package-header" href="(https:\/\/f-droid\.org\/en\/packages\/[^"]+)">[\s\S]*?<h4 class="package-name">\s*([^<]+?)\s*<\/h4>[\s\S]*?<span class="package-summary">([^<]*?)<\/span>/g;
+    const results = [];
+    let match;
+    while ((match = regex.exec(html)) !== null && results.length < 3) {
+      results.push({
+        source: "fdroid",
+        name: match[2].trim(),
+        url: match[1],
+        description: match[3].trim(),
+      });
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+// Search Arch User Repository (AUR) for Linux tools & scripts.
+async function searchAUR(query) {
+  const url = `https://aur.archlinux.org/rpc/v5/search/${encodeURIComponent(query)}`;
+  const data = await fetchPublicJson(url);
+  if (!Array.isArray(data?.results)) return [];
+  return data.results.slice(0, 3).map((pkg) => ({
+    source: "aur",
+    name: pkg.Name,
+    url: `https://aur.archlinux.org/packages/${encodeURIComponent(pkg.Name)}`,
+    version: pkg.Version || "",
+    votes: pkg.NumVotes || 0,
+    description: pkg.Description || "",
+  }));
+}
+
+// Search GNOME Shell Extensions.
+async function searchGNOMEExtensions(query) {
+  const url = `https://extensions.gnome.org/extension-query/?search=${encodeURIComponent(query)}`;
+  const data = await fetchPublicJson(url);
+  if (!Array.isArray(data?.extensions)) return [];
+  return data.extensions.slice(0, 3).map((ext) => ({
+    source: "gnome",
+    name: ext.name,
+    url: ext.link
+      ? `https://extensions.gnome.org${ext.link}`
+      : `https://extensions.gnome.org/extension/${ext.pk}/`,
+    downloads: ext.downloads || 0,
+    description: ext.description || "",
+  }));
+}
+
+// Search Conda & Bioconda via Anaconda.org.
+async function searchConda(query) {
+  const url = `https://api.anaconda.org/search?name=${encodeURIComponent(query)}`;
+  const data = await fetchPublicJson(url);
+  if (!Array.isArray(data)) return [];
+  return data.slice(0, 3).map((pkg) => ({
+    source: "conda",
+    name: pkg.name,
+    channel: pkg.owner || "conda-forge",
+    url: `https://anaconda.org/${pkg.owner || "conda-forge"}/${pkg.name}`,
+    version: pkg.latest_version || "latest",
+    description: pkg.summary || "",
+  }));
+}
+
+// Search R Packages (CRAN & Bioconductor via r-universe).
+async function searchRPackages(query) {
+  const url = `https://r-universe.dev/api/search?q=${encodeURIComponent(query)}`;
+  const data = await fetchPublicJson(url);
+  if (!Array.isArray(data?.results)) return [];
+  return data.results.slice(0, 3).map((pkg) => ({
+    source: "r",
+    name: pkg.Package,
+    registry: pkg._user === "bioc" ? "Bioconductor" : "CRAN",
+    url: `https://${pkg._user || "cran"}.r-universe.dev/${pkg.Package}`,
+    usedby: pkg._usedby || 0,
+    description: pkg.Title || pkg.Description || "",
+  }));
+}
+
+// Search Homebrew Formulae.
+let brewCache = null;
+async function searchHomebrew(query) {
+  try {
+    if (!brewCache) {
+      brewCache = fetch("https://formulae.brew.sh/api/formula.json", {
+        headers: { "User-Agent": "reuse-before-generate" },
+        signal: AbortSignal.timeout(6000),
+      })
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []);
+    }
+    const formulae = await brewCache;
+    if (!Array.isArray(formulae)) return [];
+    const qLower = query.toLowerCase();
+    const qWords = qLower.split(/\s+/).filter(Boolean);
+
+    return formulae
+      .filter((f) => {
+        const name = (f.name || "").toLowerCase();
+        const desc = (f.desc || "").toLowerCase();
+        return qWords.every((w) => name.includes(w) || desc.includes(w));
+      })
+      .slice(0, 3)
+      .map((f) => ({
+        source: "brew",
+        name: f.name,
+        url: f.homepage || `https://formulae.brew.sh/formula/${f.name}`,
+        formulaUrl: `https://formulae.brew.sh/formula/${f.name}`,
+        version: f.versions?.stable || "",
+        description: f.desc || "",
+      }));
+  } catch {
+    return [];
+  }
+}
+
+// Search PyPI (Python Package Index).
+async function searchPyPI(query) {
+  try {
+    const cleaned = query.toLowerCase().replace(/[^a-z0-9_-]/g, " ").trim();
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
+
+    const candidates = new Set([
+      words.join("-"),
+      words.join("_"),
+      words.join(""),
+      `python-${words.join("-")}`,
+      `${words.join("-")}-cli`,
+      ...words,
+    ]);
+
+    const lookups = Array.from(candidates).slice(0, 5).map(async (name) => {
+      try {
+        const res = await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`, {
+          headers: { "User-Agent": "reuse-before-generate" },
+          signal: AbortSignal.timeout(4000),
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return {
+          source: "pypi",
+          name: data.info?.name || name,
+          version: data.info?.version || "latest",
+          url: data.info?.project_url || data.info?.package_url || `https://pypi.org/project/${data.info?.name || name}/`,
+          description: data.info?.summary || "",
+        };
+      } catch {
+        return null;
+      }
+    });
+
+    const results = await Promise.all(lookups);
+    return results.filter(Boolean).slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
+// Search Show HN launches via Algolia search API.
+async function searchHackerNews(query) {
+  const url = new URL("https://hn.algolia.com/api/v1/search");
+  url.searchParams.set("tags", "show_hn");
+  url.searchParams.set("hitsPerPage", "3");
+  url.searchParams.set("query", query);
+
+  const data = await fetchPublicJson(url);
+  if (!Array.isArray(data?.hits)) return [];
+
+  return data.hits.map((hit) => ({
+    source: "hackernews",
+    name: hit.title.replace(/^Show HN:\s*/i, ""),
+    url: hit.url || `https://news.ycombinator.com/item?id=${hit.objectID}`,
+    hnUrl: `https://news.ycombinator.com/item?id=${hit.objectID}`,
+    points: hit.points || 0,
+    comments: hit.num_comments || 0,
+    description: "",
+  }));
+}
+
 // Combined Multi-Query Search & Markdown Formatter
 async function handleSearch(args = {}) {
-  // Extract all query angles
   let queryList = [];
 
   if (Array.isArray(args.queries) && args.queries.length > 0) {
@@ -231,25 +451,33 @@ async function handleSearch(args = {}) {
     }
   }
 
-  // Deduplicate queries
   queryList = [...new Set(queryList)].filter(Boolean);
 
   if (queryList.length === 0) {
     return "Please provide at least one search query or project description.";
   }
 
-  // Run all queries across public sources in parallel
+  // Run all queries across all public sources in parallel
   const searchPromises = queryList.flatMap((q) => [
     searchGitHub(q),
-    searchNpm(q),
-    searchCrates(q),
     searchGitLab(q),
+    searchNpm(q),
+    searchPyPI(q),
+    searchCrates(q),
+    searchHomebrew(q),
+    searchFlathub(q),
+    searchFDroid(q),
+    searchGNOMEExtensions(q),
+    searchAUR(q),
+    searchConda(q),
+    searchRPackages(q),
     searchNuGet(q),
     searchHuggingFace(q),
     searchDockerHub(q),
     searchMaven(q),
     searchRubyGems(q),
     searchPackagist(q),
+    searchHackerNews(q),
   ]);
 
   const rawResults = await Promise.all(searchPromises);
@@ -257,7 +485,9 @@ async function handleSearch(args = {}) {
   // Group and deduplicate results
   const repos = new Map();
   const packages = new Map();
+  const pypi = new Map();
   const crates = new Map();
+  const brew = new Map();
   const gitlab = new Map();
   const nuget = new Map();
   const huggingface = new Map();
@@ -265,12 +495,25 @@ async function handleSearch(args = {}) {
   const maven = new Map();
   const rubygems = new Map();
   const packagist = new Map();
+  const flathub = new Map();
+  const fdroid = new Map();
+  const aur = new Map();
+  const gnome = new Map();
+  const conda = new Map();
+  const rpackages = new Map();
+  const hackernews = new Map();
 
   for (const item of rawResults.flat()) {
     if (!item) continue;
 
     if (item.source === "gitlab") {
       if (!gitlab.has(item.name)) gitlab.set(item.name, item);
+    } else if (item.source === "hackernews") {
+      if (!hackernews.has(item.hnUrl)) hackernews.set(item.hnUrl, item);
+    } else if (item.source === "brew") {
+      if (!brew.has(item.name)) brew.set(item.name, item);
+    } else if (item.source === "pypi") {
+      if (!pypi.has(item.name)) pypi.set(item.name, item);
     } else if (item.source === "nuget") {
       if (!nuget.has(item.name)) nuget.set(item.name, item);
     } else if (item.source === "huggingface") {
@@ -283,6 +526,19 @@ async function handleSearch(args = {}) {
       if (!rubygems.has(item.name)) rubygems.set(item.name, item);
     } else if (item.source === "packagist") {
       if (!packagist.has(item.name)) packagist.set(item.name, item);
+    } else if (item.source === "flathub") {
+      if (!flathub.has(item.appId)) flathub.set(item.appId, item);
+    } else if (item.source === "fdroid") {
+      if (!fdroid.has(item.name)) fdroid.set(item.name, item);
+    } else if (item.source === "aur") {
+      if (!aur.has(item.name)) aur.set(item.name, item);
+    } else if (item.source === "gnome") {
+      if (!gnome.has(item.name)) gnome.set(item.name, item);
+    } else if (item.source === "conda") {
+      if (!conda.has(`${item.channel}/${item.name}`))
+        conda.set(`${item.channel}/${item.name}`, item);
+    } else if (item.source === "r") {
+      if (!rpackages.has(item.name)) rpackages.set(item.name, item);
     } else if ("full_name" in item && item.html_url) {
       if (!repos.has(item.full_name)) repos.set(item.full_name, item);
     } else if ("name" in item && "version" in item) {
@@ -298,6 +554,9 @@ async function handleSearch(args = {}) {
   );
   const sortedGitlab = Array.from(gitlab.values()).sort(
     (a, b) => (b.stars || 0) - (a.stars || 0)
+  );
+  const sortedHN = Array.from(hackernews.values()).sort(
+    (a, b) => (b.points || 0) - (a.points || 0)
   );
 
   const sections = [];
@@ -325,13 +584,66 @@ async function handleSearch(args = {}) {
     sections.push(`### 🦊 GitLab Repositories\n${gitlabLines.join("\n")}`);
   }
 
-  // 3. Package Registries and public indexes
+  // 3. Show HN Launches & Discussions
+  if (sortedHN.length > 0) {
+    const hnLines = sortedHN.slice(0, 4).map((hit) => {
+      const points = `${(hit.points || 0).toLocaleString()} pts`;
+      const comments = `${(hit.comments || 0).toLocaleString()} comments`;
+      const disc = hit.url !== hit.hnUrl ? ` • [Discussion](${hit.hnUrl})` : "";
+      return `- **[Show HN: ${hit.name}](${hit.url})** (${points} • ${comments}${disc})`;
+    });
+    sections.push(`### 🚀 Show HN Launches\n${hnLines.join("\n")}`);
+  }
+
+  // 4. Desktop Apps, Extensions & Linux Packages (Flathub, GNOME, AUR, Homebrew)
+  // 4. Desktop & Mobile Apps, Extensions & CLI Utilities (Flathub, F-Droid, GNOME, AUR, Homebrew)
   const formatDescription = (description) => {
     const text = String(description || "").replace(/\s+/g, " ").trim();
     return text ? `\n  ${text}` : "";
   };
+
+  const desktopLines = [];
+  for (const app of Array.from(flathub.values()).slice(0, 3)) {
+    desktopLines.push(
+      `- **[Flathub: ${app.name}](${app.url})** (${app.appId})${formatDescription(app.description)}`
+    );
+  }
+  for (const app of Array.from(fdroid.values()).slice(0, 3)) {
+    desktopLines.push(
+      `- **[F-Droid: ${app.name}](${app.url})**${formatDescription(app.description)}`
+    );
+  }
+  for (const ext of Array.from(gnome.values()).slice(0, 3)) {
+    const downloads = (ext.downloads || 0).toLocaleString();
+    desktopLines.push(
+      `- **[GNOME Extension: ${ext.name}](${ext.url})** (${downloads} downloads)${formatDescription(ext.description)}`
+    );
+  }
+  for (const f of Array.from(brew.values()).slice(0, 3)) {
+    const ver = f.version ? `v${f.version}` : "";
+    desktopLines.push(
+      `- **[Homebrew: ${f.name}](${f.formulaUrl})** (${ver})${formatDescription(f.description)}`
+    );
+  }
+  for (const pkg of Array.from(aur.values()).slice(0, 3)) {
+    desktopLines.push(
+      `- **[AUR: ${pkg.name}](${pkg.url})** (v${pkg.version} • ${pkg.votes} votes)${formatDescription(pkg.description)}`
+    );
+  }
+
+  if (desktopLines.length > 0) {
+    sections.push(`### 🖥️ Desktop Apps, Extensions & CLI Utilities\n${desktopLines.join("\n")}`);
+    sections.push(`### 🖥️ Desktop & Mobile Apps, Extensions & CLI Utilities\n${desktopLines.join("\n")}`);
+  }
+
+  // 5. Package Registries and public indexes
   const pkgLines = [];
 
+  for (const pkg of Array.from(pypi.values()).slice(0, 3)) {
+    pkgLines.push(
+      `- **[PyPI: ${pkg.name}](${pkg.url})** (v${pkg.version || "latest"})${formatDescription(pkg.description)}`
+    );
+  }
   for (const pkg of Array.from(packages.values()).slice(0, 3)) {
     const url = pkg.links?.npm || `https://www.npmjs.com/package/${pkg.name}`;
     pkgLines.push(
@@ -343,6 +655,16 @@ async function handleSearch(args = {}) {
     const downloads = (crate.downloads || 0).toLocaleString();
     pkgLines.push(
       `- **[crate: ${crate.name}](${url})** (${downloads} downloads)${formatDescription(crate.description)}`
+    );
+  }
+  for (const pkg of Array.from(conda.values()).slice(0, 3)) {
+    pkgLines.push(
+      `- **[Conda (${pkg.channel}): ${pkg.name}](${pkg.url})** (v${pkg.version})${formatDescription(pkg.description)}`
+    );
+  }
+  for (const pkg of Array.from(rpackages.values()).slice(0, 3)) {
+    pkgLines.push(
+      `- **[R (${pkg.registry}): ${pkg.name}](${pkg.url})**${formatDescription(pkg.description)}`
     );
   }
   for (const pkg of Array.from(nuget.values()).slice(0, 3)) {
@@ -385,7 +707,7 @@ async function handleSearch(args = {}) {
     sections.push(`### 📚 Ecosystem Packages\n${pkgLines.join("\n")}`);
   }
 
-  // 4. High-Priority AI Deep Web Search Directive
+  // 6. High-Priority AI Deep Web Search Directive
   const primary = queryList[0];
   const secondary = queryList[1] || primary;
 
@@ -443,13 +765,13 @@ const tools = [
   {
     name: "check_before_building",
     description:
-      "Run before building from scratch. Searches GitHub, GitLab, npm, crates.io, NuGet, Hugging Face, Docker Hub, Maven Central, RubyGems, and Packagist across multiple query angles to find existing codebases, and provides targeted web search queries for finding commercial SaaS competitors.",
+      "Run before building from scratch. Searches GitHub, GitLab, Show HN, Flathub, F-Droid, GNOME Extensions, Homebrew, AUR, PyPI, Conda/Bioconda, CRAN/Bioconductor, npm, crates.io, NuGet, Hugging Face, Docker Hub, Maven Central, RubyGems, and Packagist across multiple query angles to find existing codebases, and provides targeted web search queries for finding commercial SaaS competitors.",
     inputSchema: toolSchema,
   },
   {
     name: "reuse_before_generate",
     description:
-      "Run before building from scratch. Searches GitHub, GitLab, npm, crates.io, NuGet, Hugging Face, Docker Hub, Maven Central, RubyGems, and Packagist across multiple query angles to find existing codebases, and provides targeted web search queries for finding commercial SaaS competitors.",
+      "Run before building from scratch. Searches GitHub, GitLab, Show HN, Flathub, F-Droid, GNOME Extensions, Homebrew, AUR, PyPI, Conda/Bioconda, CRAN/Bioconductor, npm, crates.io, NuGet, Hugging Face, Docker Hub, Maven Central, RubyGems, and Packagist across multiple query angles to find existing codebases, and provides targeted web search queries for finding commercial SaaS competitors.",
     inputSchema: toolSchema,
   },
 ];
@@ -550,4 +872,3 @@ rl.on("line", (line) => {
     process.stderr.write(`Failed to parse JSON-RPC line: ${err.message}\n`);
   }
 });
-

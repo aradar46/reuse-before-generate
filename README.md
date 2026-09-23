@@ -18,10 +18,19 @@ The server checks these sources in parallel:
 | --- | --- |
 | GitHub | Public repositories |
 | GitLab | Public projects |
-| npm | JavaScript packages |
+| Show HN | Hacker News product & project launches |
+| Flathub | Linux desktop GUI applications |
+| F-Droid | Android open-source apps & utilities |
+| GNOME Extensions | Desktop shell extensions |
+| Homebrew | Curated CLI utilities & formulas |
+| AUR | Arch Linux tools, daemons, & scripts |
+| PyPI | Python packages & utilities |
+| Conda / Bioconda | Conda-forge & Bioconda packages |
+| CRAN / Bioconductor | R packages & bioinformatics libraries |
+| npm | JavaScript & TypeScript packages |
 | crates.io | Rust crates |
 | NuGet | .NET packages |
-| Hugging Face | Public models |
+| Hugging Face | AI models & pipelines |
 | Docker Hub | Public container images |
 | Maven Central | Java artifacts |
 | RubyGems | Ruby gems |
