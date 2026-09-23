@@ -90,6 +90,16 @@ node index.js "gnome speech to text offline"
 
 ---
 
+### 4. Slash Command / Agent Skill
+
+In supported AI coding assistants (Antigravity, Claude Code), you can invoke it directly via slash command:
+
+```text
+/reuse-before-generate <project description or keywords>
+```
+
+---
+
 ## 🤖 Make It Automatic for AI Agents
 
 To ensure your AI assistant checks for existing solutions **before writing code**, add this instruction to your `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, or `AGENTS.md`:
