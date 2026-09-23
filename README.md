@@ -8,7 +8,26 @@
 
 When you ask an AI coding assistant to build an app or module, it overenthusiastically starts scaffolding thousands of lines of code from scratch—even when battle-tested open-source libraries or maintained tools already exist.
 
-`reuse-before-generate` is a zero-dependency MCP server (and CLI tool) that intercepts the AI workflow before code generation begins. It searches GitHub, npm, and crates.io across multiple angles, formats results in structured tables, and directs the AI to search the web for existing SaaS products and community discussions.
+`reuse-before-generate` is a zero-dependency MCP server (and CLI tool) that intercepts the AI workflow before code generation begins. It searches public code and package indexes across multiple angles, formats results as structured Markdown, and directs the AI to search the web for existing SaaS products and community discussions.
+
+### Sources checked
+
+The server checks these sources in parallel:
+
+| Source | What it searches |
+| --- | --- |
+| GitHub | Public repositories |
+| GitLab | Public projects |
+| npm | JavaScript packages |
+| crates.io | Rust crates |
+| NuGet | .NET packages |
+| Hugging Face | Public models |
+| Docker Hub | Public container images |
+| Maven Central | Java artifacts |
+| RubyGems | Ruby gems |
+| Packagist | PHP packages |
+
+All added sources use public endpoints and do not require API keys. They are queried on a best-effort basis: if one source is unavailable or rate-limited, results from the other sources are still returned. A GitHub token is optional and only raises GitHub's search rate limit.
 
 ---
 
@@ -71,7 +90,7 @@ node index.js "gnome speech to text offline"
 
 ---
 
-## Make It Automatic for AI Agents
+## 🤖 Make It Automatic for AI Agents
 
 To ensure your AI assistant checks for existing solutions **before writing code**, add this instruction to your `CLAUDE.md`, `.cursorrules`, `GEMINI.md`, or `AGENTS.md`:
 
@@ -82,11 +101,12 @@ Before scaffolding a new project or substantial new module from scratch:
 3. Present existing alternatives in a concise table and ask the user whether to reuse or extend an existing project instead of building from scratch.
 ```
 
+
 ---
 
-## AI Disclosure
+## 🤖 AI Disclosure
 
-For details on how AI is used in this project, see [What I delegate to AI and what I don&#39;t](https://aradar.top/posts/what-i-delegate-to-ai-and-what-i-dont/).
+For details on how AI is used in this project, see [What I delegate to AI and what I don't](https://aradar.top/posts/what-i-delegate-to-ai-and-what-i-dont/).
 
 ---
 

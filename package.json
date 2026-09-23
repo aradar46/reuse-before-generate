@@ -1,7 +1,12 @@
 {
   "name": "reuse-before-generate",
-  "version": "2.0.0",
-  "description": "MCP tool: check whether open source projects or competing products already exist before building from scratch.",
+  "version": "2.1.0",
+  "description": "MCP tool: check whether reusable projects, packages, models, and container images already exist before building from scratch.",
+  "mcpName": "io.github.aradar46/reuse-before-generate",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aradar46/reuse-before-generate.git"
+  },
   "type": "module",
   "main": "index.js",
   "bin": {
@@ -22,12 +27,18 @@
     "code-reuse",
     "search",
     "github",
+    "gitlab",
     "npm",
-    "crates"
+    "crates",
+    "nuget",
+    "huggingface",
+    "docker",
+    "maven",
+    "rubygems",
+    "packagist"
   ],
   "license": "MIT",
   "engines": {
     "node": ">=18"
   }
 }
-

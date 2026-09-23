@@ -2,6 +2,7 @@
 #
 # Runs the published npm package over stdio. No build step and no local
 # checkout — npx fetches it.
+# GitHub is the only optional credential; all other sources are public.
 
 startCommand:
   type: stdio
@@ -15,11 +16,6 @@ startCommand:
           Optional. Raises GitHub's search rate limit from 10 requests per
           minute to 30. The server works without it, just more slowly under
           repeated use.
-      tavilyApiKey:
-        type: string
-        title: Tavily API key
-        description: Optional. Adds web discovery for projects and products.
-        description: Optional. Raises GitHub's search rate limit. The server works without it.
     required: []
   commandFunction:
     |-
@@ -27,8 +23,6 @@ startCommand:
       command: "npx",
       args: ["-y", "reuse-before-generate"],
       env: {
-        ...(config.githubToken ? { GITHUB_TOKEN: config.githubToken } : {}),
-        ...(config.tavilyApiKey ? { TAVILY_API_KEY: config.tavilyApiKey } : {})
         ...(config.githubToken ? { GITHUB_TOKEN: config.githubToken } : {})
       }
     })
