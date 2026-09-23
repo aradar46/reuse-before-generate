@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.aradar46/reuse-before-generate",
+  "title": "Reuse Before Generate",
+  "description": "Checks for reusable open-source repositories and ecosystem packages before your agent builds.",
+  "version": "2.0.0",
+  "repository": {
+    "url": "https://github.com/aradar46/reuse-before-generate",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "reuse-before-generate",
+      "version": "2.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GITHUB_TOKEN",
+          "description": "Optional GitHub token. Raises the search rate limit.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "reuse-before-generate",
+  "version": "2.0.0",
+  "description": "MCP tool: check whether open source projects or competing products already exist before building from scratch.",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "reuse-before-generate": "index.js"
+  },
+  "files": [
+    "index.js",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "node index.js",
+    "build": "node -e \"\""
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "code-reuse",
+    "search",
+    "github",
+    "npm",
+    "crates"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

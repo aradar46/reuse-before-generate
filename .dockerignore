@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.github
+.test-state
+docs
+test
+*.tgz
+*.log
